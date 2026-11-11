@@ -1,0 +1,278 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  REVIEWER
+  RATER
+}
+
+enum TaskStatus {
+  DRAFT
+  PUBLISHED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum SubStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+  APPROVED
+}
+
+enum FieldType {
+  SCALE
+  TEXTAREA
+  RANKING
+  SELECT
+  CHECKBOX
+  SECTION
+}
+
+enum FieldScope {
+  PER_RESPONSE
+  PER_TASK
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  role         Role         @default(RATER)
+  passwordHash String?
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  submissions  Submission[]
+  assignments  Assignment[]
+  reviews      Review[]
+  escalations  Escalation[]
+}
+
+model MagicLinkToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+model Project {
+  id         String         @id @default(cuid())
+  name       String
+  templateId String
+  template   RubricTemplate @relation(fields: [templateId], references: [id])
+  tasks      Task[]
+  createdAt  DateTime       @default(now())
+}
+
+model RubricTemplate {
+  id        String         @id @default(cuid())
+  name      String
+  version   Int            @default(1)
+  parentId  String?
+  fields    RubricField[]
+  projects  Project[]
+  createdAt DateTime       @default(now())
+}
+
+model RubricField {
+  id         String         @id @default(cuid())
+  templateId String
+  template   RubricTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  order      Int
+  key        String
+  label      String
+  helpText   String?
+  type       FieldType
+  scope      FieldScope
+  required   Boolean        @default(true)
+  config     Json           @default("{}")
+
+  @@index([templateId])
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  color String
+  tasks TaskTag[]
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
+
+model Task {
+  id                String       @id @default(cuid())
+  projectId         String
+  project           Project      @relation(fields: [projectId], references: [id])
+  title             String
+  priority          Int          @default(2)
+  status            TaskStatus   @default(DRAFT)
+  dueAt             DateTime?
+  instructions      String       @default("")
+  userRequest       String       @default("")
+  ratersNeeded      Int          @default(1)
+  openQueue         Boolean      @default(true)
+  templateVersionId String
+  inputFiles        InputFile[]
+  responses         Response[]
+  tags              TaskTag[]
+  assignments       Assignment[]
+  submissions       Submission[]
+  escalations       Escalation[]
+  createdById       String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([status, priority, createdAt])
+}
+
+model InputFile {
+  id         String @id @default(cuid())
+  taskId     String
+  task       Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name       String
+  storageKey String
+  mime       String
+  size       Int
+}
+
+model Response {
+  id     String         @id @default(cuid())
+  taskId String
+  task   Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label  String
+  order  Int
+  slides Slide[]
+  files  ResponseFile[]
+}
+
+model Slide {
+  id         String   @id @default(cuid())
+  responseId String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  order      Int
+  caption    String?
+  storageKey String
+  webKey     String
+  width      Int
+  height     Int
+}
+
+model ResponseFile {
+  id         String   @id @default(cuid())
+  responseId String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  name       String
+  storageKey String
+  mime       String
+  size       Int      @default(0)
+}
+
+model Assignment {
+  id        String    @id @default(cuid())
+  taskId    String
+  userId    String
+  claimedAt DateTime?
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([taskId, userId])
+}
+
+model Submission {
+  id                String     @id @default(cuid())
+  taskId            String
+  userId            String
+  status            SubStatus  @default(DRAFT)
+  templateVersionId String
+  activeSeconds     Int        @default(0)
+  submittedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  task              Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id])
+  answers           Answer[]
+  reviews           Review[]
+
+  @@unique([taskId, userId])
+}
+
+/// `scope` is the responseId for PER_RESPONSE fields and "task" for PER_TASK fields.
+/// Postgres treats NULLs as distinct in unique indexes, so a non-null scope keeps upserts exact.
+model Answer {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fieldId      String
+  responseId   String?
+  scope        String
+  value        Json
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([submissionId, fieldId, scope])
+}
+
+model Review {
+  id           String          @id @default(cuid())
+  submissionId String
+  reviewerId   String
+  verdict      SubStatus
+  summary      String?
+  comments     ReviewComment[]
+  createdAt    DateTime        @default(now())
+  submission   Submission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewer     User            @relation(fields: [reviewerId], references: [id])
+}
+
+model ReviewComment {
+  id             String   @id @default(cuid())
+  reviewId       String
+  review         Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  fieldId        String
+  responseId     String?
+  body           String
+  suggestedValue Json?
+  createdAt      DateTime @default(now())
+}
+
+model Escalation {
+  id         String    @id @default(cuid())
+  taskId     String
+  userId     String
+  note       String
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
