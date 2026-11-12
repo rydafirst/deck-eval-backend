@@ -46,4 +46,5 @@ export interface HumanisedText {
 export interface HumaniseResult {
   items: HumanisedText[];
   failed: Array<{ key: string; error: string }>;
+  notice: string | null;
 }

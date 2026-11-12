@@ -11,6 +11,11 @@ Completeness: slide 8 gives a left over of £1050, not £650.`;
     expect(missingKeyPoints(original, rewrite)).toEqual([]);
   });
 
+  it('ignores punctuation moved in or out of a quote', () => {
+    const quoted = 'Usefulness: Slide 9 adds "SQL-only users have no mitigation yet."';
+    expect(missingKeyPoints(quoted, 'Usefulness: Slide 9 adds "SQL-only users have no mitigation yet".')).toEqual([]);
+  });
+
   it('reports a changed quote, a dropped label and a lost figure', () => {
     const rewrite = 'Accuracy: Slide 5 says Peru is cheapest, which contradicts the cost sheet. Slide 8 gives £1,050.';
     expect(missingKeyPoints(original, rewrite)).toEqual(['the quote "Peru cost the least"', 'the line label "Completeness:"', 'the figure £650']);
