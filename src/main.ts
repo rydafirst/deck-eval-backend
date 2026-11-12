@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
+import { AiErrorFilter } from './ai/ai-error.filter';
 import { AppModule } from './app.module';
 import { config } from './config';
 
@@ -13,6 +14,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
   app.use(noStore);
+  app.useGlobalFilters(new AiErrorFilter());
   app.enableCors({ origin: config.webUrl, credentials: true });
   app.enableShutdownHooks();
   await app.listen(config.port);

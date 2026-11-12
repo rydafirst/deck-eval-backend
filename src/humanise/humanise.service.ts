@@ -6,6 +6,7 @@ import { OpenAiClient } from '../ai/openai-client';
 import { AuditService } from '../audit/audit.service';
 import { GuidesService } from '../guides/guides.service';
 import { JobsService } from '../jobs/jobs.service';
+import { describeAiError } from '../ai/ai-error';
 import { missingKeyPoints } from './key-points';
 
 const MAX_ROUNDS = 3;
@@ -80,7 +81,7 @@ export class HumaniseService {
     const result: HumaniseResult = { items: [], failed: [] };
     settled.forEach((outcome, i) => {
       if (outcome.status === 'fulfilled') result.items.push(outcome.value);
-      else result.failed.push({ key: items[i].key, error: (outcome.reason as Error).message || 'Rewrite failed' });
+      else result.failed.push({ key: items[i].key, error: describeAiError(outcome.reason) ?? ((outcome.reason as Error).message || 'Rewrite failed') });
     });
     return result;
   }

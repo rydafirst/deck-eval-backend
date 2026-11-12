@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { JobDTO } from '../shared';
+import { describeAiError } from '../ai/ai-error';
 
 interface Job extends JobDTO<unknown> {
   userId: string;
@@ -26,7 +27,7 @@ export class JobsService {
       .then((result) => Object.assign(job, { status: 'done', result }))
       .catch((error: Error) => {
         this.logger.error(`${key} failed: ${error.message}`);
-        Object.assign(job, { status: 'failed', error: error.message || 'Something went wrong' });
+        Object.assign(job, { status: 'failed', error: describeAiError(error) ?? (error.message || 'Something went wrong') });
       });
     return this.toDTO(job) as JobDTO<T>;
   }
