@@ -35,7 +35,7 @@ export class IntakeController {
 
   @Get('files')
   async list(@Query('ids') ids = '') {
-    const manifests = await this.files.manifests(ids.split(',').filter(Boolean).slice(0, 60));
+    const manifests = await this.files.existing(ids.split(',').filter(Boolean).slice(0, 60));
     return Promise.all(manifests.map((m) => this.files.toDTO(m)));
   }
 

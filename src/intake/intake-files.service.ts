@@ -100,6 +100,11 @@ export class IntakeFilesService {
     return Promise.all(ids.map((id) => this.manifest(id)));
   }
 
+  async existing(ids: string[]): Promise<IntakeManifest[]> {
+    const found = await Promise.all(ids.map((id) => this.manifest(id).catch(() => null)));
+    return found.filter((m): m is IntakeManifest => m !== null);
+  }
+
   async toDTO(manifest: IntakeManifest): Promise<IntakeFileDTO> {
     const first = manifest.pages[0];
     return {
