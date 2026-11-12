@@ -129,9 +129,7 @@ model Task {
   dueAt             DateTime?
   instructions      String       @default("")
   userRequest       String       @default("")
-  ratersNeeded      Int          @default(1)
   openQueue         Boolean      @default(true)
-  sharedSheet       Boolean      @default(false)
   templateVersionId String
   inputFiles        InputFile[]
   responses         Response[]
@@ -214,7 +212,7 @@ model Submission {
   answers           Answer[]
   reviews           Review[]
 
-  @@unique([taskId, userId])
+  @@index([taskId])
 }
 
 /// `scope` is the responseId for PER_RESPONSE fields and "task" for PER_TASK fields.

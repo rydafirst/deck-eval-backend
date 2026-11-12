@@ -53,7 +53,6 @@ export interface TaskSummaryDTO {
   projectName: string;
   tags: TagDTO[];
   responseCount: number;
-  ratersNeeded: number;
   submissionCount: number;
   updatedAt: string;
 }
@@ -66,7 +65,6 @@ export interface TaskDetailDTO extends TaskSummaryDTO {
   responses: ResponseDTO[];
   assigneeIds: string[];
   openQueue: boolean;
-  sharedSheet: boolean;
 }
 
 export interface ReviewCommentDTO {

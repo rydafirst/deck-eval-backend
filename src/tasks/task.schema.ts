@@ -6,7 +6,6 @@ export const basicsSchema = z.object({
   priority: z.number().int().min(1).max(3),
   tagIds: z.array(z.string()).default([]),
   dueAt: z.string().datetime({ offset: true }).nullish(),
-  ratersNeeded: z.number().int().min(1).max(50),
 });
 
 export const briefSchema = z.object({
@@ -16,9 +15,7 @@ export const briefSchema = z.object({
 
 export const assignmentSchema = z.object({
   openQueue: z.boolean(),
-  sharedSheet: z.boolean().default(false),
   assigneeIds: z.array(z.string()),
-  ratersNeeded: z.number().int().min(1).max(50),
 });
 
 export const slideOrderSchema = z.object({ slideIds: z.array(z.string()).min(1) });

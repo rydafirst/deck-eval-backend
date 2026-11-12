@@ -24,14 +24,17 @@ export class QueueService {
   ) {}
 
   async dashboard(user: SessionUser): Promise<DashboardDTO> {
-    const [next, submissions] = await Promise.all([
+    const [next, rows] = await Promise.all([
       this.nextEligible(user.id),
       this.prisma.submission.findMany({
-        where: { OR: [{ userId: user.id }, { task: { sharedSheet: true, assignments: { some: { userId: user.id, claimedAt: { not: null } } } } }] },
+        where: { task: { assignments: { some: { userId: user.id, claimedAt: { not: null } } } } },
         include: { task: { include: { ...taskSummaryInclude, responses: { select: { id: true, label: true }, orderBy: { order: 'asc' } } } } },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
+    const sheets = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) if (!sheets.has(row.taskId)) sheets.set(row.taskId, row);
+    const submissions = [...sheets.values()].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
     const fieldCache = new Map<string, RubricFieldDef[]>();
     const items = await Promise.all(
@@ -71,28 +74,23 @@ export class QueueService {
   async claim(user: SessionUser, taskId: string) {
     const submission = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${taskId} FOR UPDATE`;
-      const task = await tx.task.findUnique({
-        where: { id: taskId },
-        include: { assignments: { where: { userId: user.id } }, _count: { select: { submissions: true } } },
-      });
+      const task = await tx.task.findUnique({ where: { id: taskId }, include: { assignments: { where: { userId: user.id } } } });
       if (!task || !OPEN_STATUSES.includes(task.status as (typeof OPEN_STATUSES)[number])) {
         throw new NotFoundException('Task is not available');
       }
-      const existing = await tx.submission.findUnique({ where: { taskId_userId: { taskId, userId: user.id } } });
-      if (existing) return existing;
+      const assignment = task.assignments[0];
+      if (!assignment && !task.openQueue && user.role !== 'ADMIN') throw new ConflictException('Only the people an admin adds to this task can join it');
 
-      const assigned = task.assignments.length > 0;
-      if (task.sharedSheet && !assigned) throw new ConflictException('Only the people an admin adds to this team can join it');
-      const hasSlot = task.openQueue && task._count.submissions < task.ratersNeeded;
-      if (!assigned && !hasSlot) throw new ConflictException('This task has all the raters it needs');
-
+      const sheet = await tx.submission.findFirst({ where: { taskId }, orderBy: { createdAt: 'asc' } });
+      if (sheet && sheet.status !== 'DRAFT' && sheet.status !== 'RETURNED' && !assignment?.claimedAt) {
+        throw new ConflictException('This task has already been submitted');
+      }
       await tx.assignment.upsert({
         where: { taskId_userId: { taskId, userId: user.id } },
         create: { taskId, userId: user.id, claimedAt: new Date() },
-        update: { claimedAt: new Date() },
+        update: { claimedAt: assignment?.claimedAt ?? new Date() },
       });
-      const shared = task.sharedSheet ? await tx.submission.findFirst({ where: { taskId }, orderBy: { createdAt: 'asc' } }) : null;
-      return shared ?? tx.submission.create({ data: { taskId, userId: user.id, templateVersionId: task.templateVersionId } });
+      return sheet ?? tx.submission.create({ data: { taskId, userId: user.id, templateVersionId: task.templateVersionId } });
     });
     await this.status.refresh(taskId);
     await this.audit.log(user.id, 'claim', 'Task', taskId, { submissionId: submission.id });
@@ -100,29 +98,29 @@ export class QueueService {
   }
 
   async unclaim(user: SessionUser, taskId: string) {
-    const task = await this.prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { openQueue: true, sharedSheet: true } });
-    const submission = await this.workspace.sheetFor(taskId, task.sharedSheet, user.id);
-    if (!submission) throw new NotFoundException('You have not claimed this task');
-    if (submission.status !== 'DRAFT') throw new BadRequestException('Only tasks that have not been submitted can be unclaimed');
+    const submission = await this.workspace.joinedSheet(taskId, user.id);
+    if (!submission) throw new NotFoundException('You have not joined this task');
+    if (submission.status !== 'DRAFT') throw new BadRequestException('Only tasks that have not been submitted can be left');
 
-    const teammate = task.sharedSheet
-      ? await this.prisma.assignment.findFirst({ where: { taskId, userId: { not: user.id }, claimedAt: { not: null } }, orderBy: { claimedAt: 'asc' } })
-      : null;
+    const task = await this.prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { openQueue: true } });
+    const leave = task.openQueue
+      ? this.prisma.assignment.deleteMany({ where: { taskId, userId: user.id } })
+      : this.prisma.assignment.updateMany({ where: { taskId, userId: user.id }, data: { claimedAt: null } });
+    const teammate = await this.prisma.assignment.findFirst({
+      where: { taskId, userId: { not: user.id }, claimedAt: { not: null } },
+      orderBy: { claimedAt: 'asc' },
+    });
+
     if (teammate) {
       await this.prisma.$transaction([
-        this.prisma.assignment.updateMany({ where: { taskId, userId: user.id }, data: { claimedAt: null } }),
+        leave,
         ...(submission.userId === user.id ? [this.prisma.submission.update({ where: { id: submission.id }, data: { userId: teammate.userId } })] : []),
       ]);
       await this.audit.log(user.id, 'leave', 'Task', taskId, { submissionId: submission.id });
       return;
     }
 
-    await this.prisma.$transaction([
-      this.prisma.submission.delete({ where: { id: submission.id } }),
-      task.openQueue
-        ? this.prisma.assignment.deleteMany({ where: { taskId, userId: user.id } })
-        : this.prisma.assignment.updateMany({ where: { taskId, userId: user.id }, data: { claimedAt: null } }),
-    ]);
+    await this.prisma.$transaction([this.prisma.submission.delete({ where: { id: submission.id } }), leave]);
     await this.status.refresh(taskId);
     await this.audit.log(user.id, 'unclaim', 'Task', taskId);
   }
@@ -155,17 +153,15 @@ export class QueueService {
   }
 
   private async nextEligible(userId: string) {
-    const candidates = await this.prisma.task.findMany({
+    return this.prisma.task.findFirst({
       where: {
         status: { in: [...OPEN_STATUSES] },
-        submissions: { none: { userId } },
+        submissions: { none: { status: { in: ['SUBMITTED', 'APPROVED'] } } },
         assignments: { none: { userId, claimedAt: { not: null } } },
-        OR: [{ assignments: { some: { userId } } }, { openQueue: true, sharedSheet: false }],
+        OR: [{ assignments: { some: { userId } } }, { openQueue: true }],
       },
-      include: { ...taskSummaryInclude, assignments: { where: { userId }, select: { id: true } } },
+      include: taskSummaryInclude,
       orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      take: 50,
     });
-    return candidates.find((t) => t.assignments.length > 0 || t._count.submissions < t.ratersNeeded) ?? null;
   }
 }

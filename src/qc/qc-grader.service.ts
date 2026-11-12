@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { GuidesService } from '../guides/guides.service';
 import { describeForm, qcInputSchema, toAnswers, type QcToolInput } from './qc-form';
+import { ruleIssues } from './rationale-rules';
 
 const TOOL_NAME = 'submit_ratings';
 const MAX_IMAGES = 95;
@@ -18,6 +19,7 @@ const MAX_FILE_CHARS = 30_000;
 const SLIDE_WIDTH = 1280;
 const MAX_OUTPUT_TOKENS = 32_000;
 const MAX_ATTEMPTS = 2;
+const MAX_FIX_ROUNDS = 2;
 const IMAGE_FILE = /\.(png|jpe?g|webp|gif)$/i;
 
 type GradingTask = NonNullable<Awaited<ReturnType<QcGraderService['loadTask']>>>;
@@ -53,20 +55,40 @@ export class QcGraderService {
     const system: TextBlockParam[] = [{ type: 'text', text: await this.systemPrompt(), cache_control: { type: 'ephemeral' } }];
     const messages: MessageParam[] = [{ role: 'user', content: await this.taskContent(task, fields) }];
 
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let missedCalls = 0;
+    let fixRounds = 0;
+    while (missedCalls < MAX_ATTEMPTS) {
       const message = await client.messages
         .stream({ model: config.anthropic.qcModel, max_tokens: MAX_OUTPUT_TOKENS, system, tools: [tool], messages })
         .finalMessage();
       if (message.stop_reason === 'max_tokens') throw new Error('The ratings were cut off before they finished. Try again.');
 
       const toolUse = message.content.find((block) => block.type === 'tool_use' && block.name === TOOL_NAME);
-      if (toolUse && toolUse.type === 'tool_use') {
-        const input = toolUse.input as QcToolInput;
-        return { answers: toAnswers(input, fields, responses), notes: input.notes?.trim() || null };
+      if (!toolUse || toolUse.type !== 'tool_use') {
+        missedCalls++;
+        messages.push({ role: 'assistant', content: message.content }, { role: 'user', content: `Call ${TOOL_NAME} now with the whole form filled in.` });
+        continue;
       }
-      messages.push({ role: 'assistant', content: message.content }, { role: 'user', content: `Call ${TOOL_NAME} now with the whole form filled in.` });
+
+      const input = toolUse.input as QcToolInput;
+      const issues = ruleIssues(input, fields, responses);
+      if (issues.length === 0 || fixRounds === MAX_FIX_ROUNDS) return this.result(input, fields, responses, issues);
+      fixRounds++;
+      messages.push(
+        { role: 'assistant', content: message.content },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: this.fixRequest(issues) }] },
+      );
     }
     throw new Error('The AI did not return any ratings. Try again.');
+  }
+
+  private result(input: QcToolInput, fields: RubricFieldDef[], responses: ResponseRef[], issues: string[]): QcResult {
+    const notes = [input.notes?.trim(), ...issues.map((issue) => `Rule not met: ${issue}`)].filter(Boolean).join('\n');
+    return { answers: toAnswers(input, fields, responses), notes: notes || null };
+  }
+
+  private fixRequest(issues: string[]): string {
+    return `These answers break the rules in the Slides QC rationale guide:\n${issues.map((i) => `- ${i}`).join('\n')}\n\nFix every one of them without changing any score, finding, slide number, quote or figure that is correct. Keep everything else as it is. Then call ${TOOL_NAME} again with the whole form.`;
   }
 
   private loadTask(taskId: string) {
@@ -90,7 +112,7 @@ Follow the guides below. They were written for a person rating by hand, so adapt
   - Everything that is part of the slide itself is the deck: its text, text size and wrapping, overlaps, alignment, spacing, element colours, charts and images. Score what you see. Never explain a visible problem away as a rendering, font or capture issue, and never ask the admin to check a slide in a viewer.
   - This rule overrides anything in the guides about rendering differences or checking slides in a viewer.
 - Use "notes" only for things you genuinely could not judge, such as a missing input file or a slide too blurred to read. Do not use notes to restate, hedge or second-guess your scores. If there is nothing like that, set notes to null.
-- The form has a separate box for each score and each explanation. Put only the number in a score field. In an explanation box, write the sub-criterion lines for that axis only (for example "Completeness: ..." on its own line, then "Accuracy: ..."), with no axis heading and no "Rating:" line, unless the task instructions ask for them.
+- The form has a separate box for each score and each explanation. Put only the number in a score field. In an explanation box, write the sub-criterion lines for that axis only (for example "Completeness: ..." on its own line, then "Accuracy: ..."), with no axis heading and no "Rating:" line, unless the task instructions ask for them. Label lines only with that axis's sub-criteria from the axis checklist (combined if needed, such as "Narrative, structure and transitions:"), never with words like "Problem:" or "Strength:". Give one or two examples per point, never more.
 - Write plain text with line breaks. No markdown, no bold, no headings, no bullet symbols unless the task instructions use them.
 - Where the task instructions or the form differ from the guides, follow the task instructions and the form.
 - Rate every response on its own first. Only the ranking fields may compare responses.`;
@@ -127,7 +149,11 @@ Follow the guides below. They were written for a person rating by hand, so adapt
       }
     }
 
-    blocks.push({ type: 'text', text: `Rate every response against the instructions, the user request and the input files, then fill the task fields. Call ${TOOL_NAME} once with the whole form.` });
+    blocks.push({
+      type: 'text',
+      text: `Rate every response against the instructions, the user request and the input files, then fill the task fields. Before you submit, go through the "Final check before submitting" list in the Slides QC rationale guide for every answer. Call ${TOOL_NAME} once with the whole form.`,
+      cache_control: { type: 'ephemeral' },
+    });
     return blocks;
   }
 

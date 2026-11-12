@@ -23,7 +23,7 @@ export class WorkspaceService {
     if (!task) throw new NotFoundException('Task not found');
     if (!VISIBLE_TO_RATERS.includes(task.status) && user.role !== 'ADMIN') throw new NotFoundException('Task not found');
 
-    const submission = await this.sheetFor(taskId, task.sharedSheet, user.id);
+    const submission = await this.joinedSheet(taskId, user.id);
     const editable = submission && (submission.status === 'DRAFT' || submission.status === 'RETURNED');
     return {
       task: await this.presenter.detail(task),
@@ -57,27 +57,28 @@ export class WorkspaceService {
     };
   }
 
-  async sheetFor(taskId: string, sharedSheet: boolean, userId: string) {
-    const own = await this.prisma.submission.findUnique({ where: { taskId_userId: { taskId, userId } } });
-    if (own || !sharedSheet || !(await this.joined(taskId, userId))) return own;
+  sheet(taskId: string) {
     return this.prisma.submission.findFirst({ where: { taskId }, orderBy: { createdAt: 'asc' } });
   }
 
+  async joinedSheet(taskId: string, userId: string) {
+    return (await this.joined(taskId, userId)) ? this.sheet(taskId) : null;
+  }
+
   async memberSubmission(submissionId: string, userId: string) {
-    const submission = await this.prisma.submission.findUnique({ where: { id: submissionId }, include: { task: { select: { sharedSheet: true } } } });
+    const submission = await this.prisma.submission.findUnique({ where: { id: submissionId } });
     if (!submission) throw new NotFoundException('Submission not found');
-    if (submission.userId === userId) return submission;
-    if (submission.task.sharedSheet && (await this.joined(submission.taskId, userId))) return submission;
-    throw new ForbiddenException();
+    if (!(await this.joined(submission.taskId, userId))) throw new ForbiddenException();
+    return submission;
   }
 
   async team(taskId: string): Promise<TeamMemberDTO[]> {
-    const task = await this.prisma.task.findUnique({
-      where: { id: taskId },
-      select: { sharedSheet: true, assignments: { include: { user: { select: { name: true, email: true } } }, orderBy: { claimedAt: 'asc' } } },
+    const assignments = await this.prisma.assignment.findMany({
+      where: { taskId },
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: { claimedAt: 'asc' },
     });
-    if (!task?.sharedSheet) return [];
-    return task.assignments.map((a) => ({ id: a.userId, name: a.user.name ?? a.user.email, joined: a.claimedAt !== null }));
+    return assignments.map((a) => ({ id: a.userId, name: a.user.name ?? a.user.email, joined: a.claimedAt !== null }));
   }
 
   private async joined(taskId: string, userId: string) {

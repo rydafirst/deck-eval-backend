@@ -17,7 +17,6 @@ interface DraftToolInput {
   priority: number;
   tag_names?: string[];
   due_date?: string | null;
-  raters_needed?: number;
   instructions_html: string;
   user_request_html: string;
   files: Array<{ file: string; role: 'response' | 'combined' | 'input' | 'ignore'; label?: string | null; labels?: string[] }>;
@@ -125,7 +124,6 @@ How to fill the draft:
 - priority: 1 high, 2 normal, 3 low. Use 2 unless the admin says otherwise.
 - tag_names: reuse existing tags where they fit (${tags.length ? tags.join(', ') : 'none yet'}); only add new ones if the admin asks.
 - due_date: YYYY-MM-DD only if the admin gives one. Today is ${new Date().toISOString().slice(0, 10)}.
-- raters_needed: 1 unless the admin says otherwise.
 - notes: anything the admin should double-check, such as a missing user request or a guessed label.
 
 How to talk:
@@ -148,7 +146,6 @@ How to talk:
           priority: { type: 'integer', enum: [1, 2, 3] },
           tag_names: { type: 'array', items: { type: 'string' } },
           due_date: { type: ['string', 'null'], description: 'YYYY-MM-DD or null' },
-          raters_needed: { type: 'integer', minimum: 1 },
           instructions_html: { type: 'string' },
           user_request_html: { type: 'string' },
           files: {
@@ -193,7 +190,6 @@ How to talk:
       priority: input.priority,
       tagNames: input.tag_names ?? [],
       dueAt: input.due_date ?? null,
-      ratersNeeded: input.raters_needed ?? 1,
       instructionsHtml: input.instructions_html ?? '',
       userRequestHtml: input.user_request_html ?? '',
       files,
@@ -209,7 +205,6 @@ How to talk:
       priority: draft.priority,
       tag_names: draft.tagNames,
       due_date: draft.dueAt,
-      raters_needed: draft.ratersNeeded,
       instructions_html: draft.instructionsHtml,
       user_request_html: draft.userRequestHtml,
       files: draft.files.map((f) => ({ file: alias.get(f.fileId) ?? f.fileId, role: f.role, label: f.label, labels: f.labels })),

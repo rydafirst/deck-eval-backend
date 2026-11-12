@@ -39,7 +39,7 @@ export class UsersController {
     if (!user) throw new NotFoundException('User not found');
 
     const submissions = await this.prisma.submission.findMany({
-      where: { userId: id },
+      where: { task: { assignments: { some: { userId: id, claimedAt: { not: null } } } } },
       include: { task: { select: { title: true, priority: true, project: { select: { name: true } } } } },
       orderBy: { updatedAt: 'desc' },
     });

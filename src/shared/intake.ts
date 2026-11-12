@@ -33,7 +33,6 @@ export interface TaskDraft {
   priority: number;
   tagNames: string[];
   dueAt: string | null;
-  ratersNeeded: number;
   instructionsHtml: string;
   userRequestHtml: string;
   files: DraftFile[];

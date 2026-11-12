@@ -9,9 +9,13 @@ import { JobsService } from '../jobs/jobs.service';
 import { describeAiError } from '../ai/ai-error';
 import { missingKeyPoints, stripEchoedLabel } from './key-points';
 
-const MAX_ROUNDS = 3;
+const MAX_ROUNDS = 5;
 const TARGET_SCORE = 10;
 const CONCURRENCY = 4;
+
+const FORMAT_RULES = `The text is a grading rationale, so its format is fixed:
+- Labels at the start of lines (such as "Completeness:" or "Narrative, structure and transitions:"), the colon after each label, the line breaks, slide numbers, figures and text quoted from the deck are required. Never take points off for them and never suggest removing or rewording them.
+- If the rewrite drops, renames or merges a line label, joins the lines into one paragraph, or changes a quote, list that under "missing".`;
 
 interface Review {
   score: number;
@@ -109,25 +113,26 @@ export class HumaniseService {
   }
 
   private async review(mode: HumaniseMode, item: HumaniseItem, prompts: Prompts, rewrite: string): Promise<Review> {
-    const prompt = `${prompts.styleNote}\n\nAnswer box: ${item.label}\n\nOriginal:\n${item.text}\n\nRewrite:\n${rewrite}`;
+    const prompt = `${prompts.styleNote}\n\n${FORMAT_RULES}\n\nAnswer box: ${item.label}\n\nOriginal:\n${item.text}\n\nRewrite:\n${rewrite}`;
     const raw = mode === 'chatgpt' ? await this.openai.complete(prompts.checker, prompt) : await this.claude.complete(prompts.checker, prompt);
     return parseReview(raw);
   }
 
   private async humanise(mode: HumaniseMode, item: HumaniseItem, prompts: Prompts): Promise<HumanisedText> {
+    const current = await this.review(mode, item, prompts, item.text);
+    if (current.score >= TARGET_SCORE) return { key: item.key, text: item.text, score: current.score, rounds: 0, missing: [], applied: true };
+
     let text = await this.write(mode, item, prompts);
     let best: HumanisedText | null = null;
-
     for (let round = 1; round <= MAX_ROUNDS; round++) {
       const review = await this.review(mode, item, prompts, text);
       const missing = [...missingKeyPoints(item.text, text).map((point) => `Put back ${point} exactly as in the original.`), ...review.missing];
       const attempt: HumanisedText = { key: item.key, text, score: review.score, rounds: round, missing, applied: missing.length === 0 };
+      if (attempt.applied && attempt.score >= TARGET_SCORE) return attempt;
       if (!best || this.better(attempt, best)) best = attempt;
-      if (attempt.applied && attempt.score >= TARGET_SCORE) break;
       if (round < MAX_ROUNDS) text = await this.write(mode, item, prompts, text, [...missing, ...review.fixes]);
     }
-
-    return best!.applied ? best! : { ...best!, text: item.text };
+    return { ...best!, text: item.text, applied: false };
   }
 
   private better(a: HumanisedText, b: HumanisedText): boolean {

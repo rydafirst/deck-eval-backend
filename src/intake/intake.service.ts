@@ -35,7 +35,6 @@ export class IntakeService {
       priority: draft.priority,
       tagIds: await this.tagIds(draft.tagNames),
       dueAt: draft.dueAt ? new Date(`${draft.dueAt}T23:59:00Z`).toISOString() : null,
-      ratersNeeded: draft.ratersNeeded,
     });
     await this.tasks.updateBrief(userId, task.id, { instructions: draft.instructionsHtml, userRequest: draft.userRequestHtml });
 

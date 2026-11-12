@@ -26,7 +26,6 @@ export class TaskPresenter {
       projectName: task.project.name,
       tags: task.tags.map(({ tag }) => ({ id: tag.id, name: tag.name, color: tag.color })),
       responseCount: task._count.responses,
-      ratersNeeded: task.ratersNeeded,
       submissionCount: task._count.submissions,
       updatedAt: task.updatedAt.toISOString(),
     };
@@ -43,7 +42,6 @@ export class TaskPresenter {
       userRequest: task.userRequest,
       templateVersionId: task.templateVersionId,
       openQueue: task.openQueue,
-      sharedSheet: task.sharedSheet,
       assigneeIds: task.assignments.map((a) => a.userId),
       inputFiles,
       responses,

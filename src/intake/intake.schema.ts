@@ -14,7 +14,6 @@ export const taskDraftSchema = z.object({
   priority: z.number().int().min(1).max(3),
   tagNames: z.array(z.string().trim().min(1).max(40)).max(10),
   dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
-  ratersNeeded: z.number().int().min(1).max(50),
   instructionsHtml: z.string().max(100_000),
   userRequestHtml: z.string().max(100_000),
   files: z.array(draftFileSchema).max(60),

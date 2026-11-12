@@ -76,7 +76,6 @@ async function main() {
       projectId: project.id,
       priority: 2,
       status: 'PUBLISHED',
-      ratersNeeded: 2,
       templateVersionId: template.id,
       createdById: admin.id,
       instructions:

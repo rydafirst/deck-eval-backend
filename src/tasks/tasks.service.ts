@@ -44,7 +44,6 @@ export class TasksService {
         projectId: project.id,
         priority: input.priority,
         dueAt: input.dueAt ? new Date(input.dueAt) : null,
-        ratersNeeded: input.ratersNeeded,
         templateVersionId: project.templateId,
         createdById: userId,
         tags: { create: input.tagIds.map((tagId) => ({ tagId })) },
@@ -77,7 +76,6 @@ export class TasksService {
           projectId: input.projectId,
           priority: input.priority,
           dueAt: input.dueAt ? new Date(input.dueAt) : null,
-          ratersNeeded: input.ratersNeeded,
           templateVersionId,
           tags: { create: input.tagIds.map((tagId) => ({ tagId })) },
         },
@@ -255,7 +253,7 @@ export class TasksService {
           update: {},
         }),
       ),
-      this.prisma.task.update({ where: { id }, data: { openQueue: input.sharedSheet ? false : input.openQueue, sharedSheet: input.sharedSheet, ratersNeeded: input.sharedSheet ? 1 : input.ratersNeeded } }),
+      this.prisma.task.update({ where: { id }, data: { openQueue: input.openQueue } }),
     ]);
     await this.audit.log(userId, 'assign', 'Task', id, { ...input });
     await this.status.refresh(id);
@@ -284,9 +282,7 @@ export class TasksService {
         priority: source.priority,
         instructions: source.instructions,
         userRequest: source.userRequest,
-        ratersNeeded: source.ratersNeeded,
         openQueue: source.openQueue,
-        sharedSheet: source.sharedSheet,
         templateVersionId: source.project.templateId,
         createdById: userId,
         tags: { create: source.tags.map((t) => ({ tagId: t.tagId })) },

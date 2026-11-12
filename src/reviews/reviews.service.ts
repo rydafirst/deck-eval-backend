@@ -33,8 +33,8 @@ export class ReviewsService {
   async queue(filters: ReviewFilters): Promise<ReviewQueueItemDTO[]> {
     const where: Prisma.SubmissionWhereInput = {
       status: filters.status ?? 'SUBMITTED',
-      userId: filters.raterId || undefined,
       task: {
+        assignments: filters.raterId ? { some: { userId: filters.raterId, claimedAt: { not: null } } } : undefined,
         projectId: filters.projectId || undefined,
         tags: filters.tagId ? { some: { tagId: filters.tagId } } : undefined,
       },
