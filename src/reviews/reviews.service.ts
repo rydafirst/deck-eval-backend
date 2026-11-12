@@ -53,6 +53,7 @@ export class ReviewsService {
       taskId: s.taskId,
       taskTitle: s.task.title,
       projectName: s.task.project.name,
+      raterId: s.userId,
       raterName: s.user.name,
       raterEmail: s.user.email,
       submittedAt: s.submittedAt?.toISOString() ?? null,

@@ -140,6 +140,7 @@ export interface ReviewQueueItemDTO {
   taskId: string;
   taskTitle: string;
   projectName: string;
+  raterId: string;
   raterName: string | null;
   raterEmail: string;
   submittedAt: string | null;
@@ -157,4 +158,23 @@ export interface StatsDTO {
 export interface Paged<T> {
   items: T[];
   total: number;
+}
+
+export interface UserTaskDTO {
+  submissionId: string;
+  taskId: string;
+  taskTitle: string;
+  projectName: string;
+  priority: number;
+  status: SubStatus;
+  submittedAt: string | null;
+  updatedAt: string;
+  activeSeconds: number;
+}
+
+export interface UserDetailDTO {
+  user: UserDTO;
+  counts: Record<SubStatus, number>;
+  totalActiveSeconds: number;
+  tasks: UserTaskDTO[];
 }

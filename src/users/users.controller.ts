@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
-import type { SessionUser, UserDTO } from '../shared';
+import type { SessionUser, SubStatus, UserDetailDTO, UserDTO } from '../shared';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser, Roles } from '../common/decorators';
@@ -31,6 +31,38 @@ export class UsersController {
   async list(): Promise<UserDTO[]> {
     const users = await this.prisma.user.findMany({ select: userSelect, orderBy: { createdAt: 'asc' } });
     return users.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() }));
+  }
+
+  @Get(':id')
+  async detail(@Param('id') id: string): Promise<UserDetailDTO> {
+    const user = await this.prisma.user.findUnique({ where: { id }, select: userSelect });
+    if (!user) throw new NotFoundException('User not found');
+
+    const submissions = await this.prisma.submission.findMany({
+      where: { userId: id },
+      include: { task: { select: { title: true, priority: true, project: { select: { name: true } } } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const counts: Record<SubStatus, number> = { DRAFT: 0, SUBMITTED: 0, RETURNED: 0, APPROVED: 0 };
+    submissions.forEach((s) => (counts[s.status] += 1));
+
+    return {
+      user: { ...user, createdAt: user.createdAt.toISOString() },
+      counts,
+      totalActiveSeconds: submissions.reduce((sum, s) => sum + s.activeSeconds, 0),
+      tasks: submissions.map((s) => ({
+        submissionId: s.id,
+        taskId: s.taskId,
+        taskTitle: s.task.title,
+        projectName: s.task.project.name,
+        priority: s.task.priority,
+        status: s.status,
+        submittedAt: s.submittedAt?.toISOString() ?? null,
+        updatedAt: s.updatedAt.toISOString(),
+        activeSeconds: s.activeSeconds,
+      })),
+    };
   }
 
   @Post()
