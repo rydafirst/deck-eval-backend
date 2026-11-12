@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { ExportsModule } from './exports/exports.module';
 import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma/prisma.module';
@@ -33,6 +34,7 @@ import { UsersModule } from './users/users.module';
     ReviewsModule,
     ExportsModule,
     StatsModule,
+    BootstrapModule,
   ],
   controllers: [HealthController],
 })

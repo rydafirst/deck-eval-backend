@@ -16,6 +16,10 @@ export const config = {
   sessionDays: 7,
   magicLinkMinutes: 15,
   allowSignup: process.env.ALLOW_SIGNUP !== 'false',
+  bootstrapAdmin: {
+    email: process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase() ?? '',
+    password: process.env.SEED_ADMIN_PASSWORD ?? '',
+  },
   emailServer: process.env.EMAIL_SERVER ?? '',
   emailFrom: process.env.EMAIL_FROM ?? 'Deck Eval <no-reply@deckeval.local>',
   storage: {

@@ -5,72 +5,10 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { LocalStorageDriver } from '../src/storage/local.driver';
 import { S3StorageDriver } from '../src/storage/s3.driver';
 import { StorageService } from '../src/storage/storage.service';
-import type { FieldInput } from '../src/templates/template.schema';
+import { DEFAULT_PROJECT_NAME, DEFAULT_RUBRIC, DEFAULT_RUBRIC_NAME } from '../src/bootstrap/default-rubric';
 
 const prisma = new PrismaService();
 const storage = new StorageService(config.storage.driver === 's3' ? new S3StorageDriver() : new LocalStorageDriver());
-
-const scale = { min: 1, max: 7, labels: { '1': 'Poor', '7': 'Excellent' } };
-
-function axis(key: string, label: string, helpText: string, noun: string): FieldInput[] {
-  return [
-    { key, label, helpText, type: 'SCALE', scope: 'PER_RESPONSE', required: true, config: scale },
-    {
-      key: `${key}_explanation`,
-      label: `${label}: explanation`,
-      helpText: null,
-      type: 'TEXTAREA',
-      scope: 'PER_RESPONSE',
-      required: true,
-      config: { minChars: 40, maxChars: 2000, placeholder: `Briefly explain the ${noun} score` },
-    },
-  ];
-}
-
-const defaultRubric: FieldInput[] = [
-  { key: 'individual_rating', label: 'Individual Rating', helpText: null, type: 'SECTION', scope: 'PER_RESPONSE', required: false, config: {} },
-  ...axis(
-    'content_quality',
-    'Content quality',
-    'How complete, accurate and useful the content is, including whether it covers the key concepts from the source material without misleading omissions, inaccuracies or irrelevant additions.',
-    'content quality',
-  ),
-  ...axis(
-    'storytelling',
-    'Storytelling',
-    'How well the deck flows as a cohesive narrative, with clear transitions, logical or emotional build-up, and a structure that feels engaging rather than like a list of disconnected facts.',
-    'storytelling',
-  ),
-  ...axis(
-    'writing_style',
-    'Writing style',
-    'How clear, concise, specific and natural the language is. Generic, inflated, repetitive, buzzword-heavy or formulaic language is penalised.',
-    'writing style',
-  ),
-  ...axis(
-    'aesthetics',
-    'Aesthetics',
-    'How polished and visually appealing the deck feels overall, including typography, colour use, visual consistency, visual variety, and the quality of charts, diagrams, images and other visual elements.',
-    'aesthetics',
-  ),
-  ...axis(
-    'layout',
-    'Layout',
-    'How text, visuals, headers, charts and other elements are arranged within each slide and across the deck, including spacing, alignment, grouping, hierarchy, and avoidance of clutter or overlap.',
-    'layout',
-  ),
-  ...axis('overall', 'Overall', 'Now, using all the above elements as guidance, please give the artifact an overall rating.', 'overall'),
-  { key: 'ranking', label: 'Overall Ranking', helpText: 'Rank the responses from best to worst. Each response can only be used once.', type: 'RANKING', scope: 'PER_TASK', required: true, config: {} },
-  {
-    key: 'ranking_rationale',
-    label: 'What drove the ranking? Note ties or close calls.',
-    helpText: null,
-    type: 'TEXTAREA',
-    scope: 'PER_TASK',
-    required: true,
-    config: { minChars: 40, maxChars: 3000, placeholder: 'What separated the responses?' },
-  },
-];
 
 const PALETTE: Record<string, string> = { A: '#2F6B4F', B: '#2B4C7E', C: '#8A4B2C' };
 
@@ -108,7 +46,7 @@ async function main() {
   await seedUser('rater1@deckeval.local', 'Rae Rater', 'RATER', userPassword);
   await seedUser('rater2@deckeval.local', 'Sam Rater', 'RATER', userPassword);
 
-  const existing = await prisma.project.findFirst({ where: { name: 'Slides Eval' } });
+  const existing = await prisma.project.findFirst({ where: { name: DEFAULT_PROJECT_NAME } });
   if (existing) {
     console.log('Seed data already present, users refreshed.');
     return;
@@ -116,13 +54,13 @@ async function main() {
 
   const template = await prisma.rubricTemplate.create({
     data: {
-      name: 'Slides Eval default',
+      name: DEFAULT_RUBRIC_NAME,
       fields: {
-        create: defaultRubric.map((f, order) => ({ ...f, order, config: f.config as object })),
+        create: DEFAULT_RUBRIC.map((f, order) => ({ ...f, order, config: f.config as object })),
       },
     },
   });
-  const project = await prisma.project.create({ data: { name: 'Slides Eval', templateId: template.id } });
+  const project = await prisma.project.create({ data: { name: DEFAULT_PROJECT_NAME, templateId: template.id } });
 
   const tags = await Promise.all(
     [
