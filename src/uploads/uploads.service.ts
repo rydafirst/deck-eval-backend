@@ -39,8 +39,11 @@ export class UploadsService {
   async storeImage(folder: string, file: Express.Multer.File): Promise<StoredImage> {
     if (!this.isImage(file)) throw new BadRequestException(`${file.originalname} is not a supported image`);
     if (file.size > config.limits.imageBytes) throw new BadRequestException(`${file.originalname} is larger than 15MB`);
+    return this.storeImageBuffer(folder, file.originalname, file.buffer, file.mimetype);
+  }
 
-    const image = sharp(file.buffer, { animated: false });
+  async storeImageBuffer(folder: string, name: string, buffer: Buffer, mime: string): Promise<StoredImage> {
+    const image = sharp(buffer, { animated: false });
     const meta = await image.metadata();
     const web = await image
       .rotate()
@@ -48,13 +51,10 @@ export class UploadsService {
       .webp({ quality: 85 })
       .toBuffer();
 
-    const storageKey = this.storage.newKey(folder, file.originalname);
+    const storageKey = this.storage.newKey(folder, name);
     const webKey = this.storage.newKey(folder, 'web.webp', '-web');
-    await Promise.all([
-      this.storage.putObject(storageKey, file.buffer, file.mimetype),
-      this.storage.putObject(webKey, web, 'image/webp'),
-    ]);
-    return { name: file.originalname, storageKey, webKey, width: meta.width ?? 0, height: meta.height ?? 0 };
+    await Promise.all([this.storage.putObject(storageKey, buffer, mime), this.storage.putObject(webKey, web, 'image/webp')]);
+    return { name, storageKey, webKey, width: meta.width ?? 0, height: meta.height ?? 0 };
   }
 
   async storeFile(folder: string, file: Express.Multer.File): Promise<StoredFile> {

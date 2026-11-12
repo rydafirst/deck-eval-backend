@@ -34,7 +34,13 @@ export const config = {
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
     bucket: process.env.R2_BUCKET ?? 'deck-eval',
   },
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+    baseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
+  },
   limits: {
+    intakeBytes: 80 * 1024 * 1024,
     imageBytes: 15 * 1024 * 1024,
     docBytes: 25 * 1024 * 1024,
     webImageWidth: 1600,

@@ -11,7 +11,11 @@ COPY . .
 RUN pnpm build && pnpm prune --prod --ignore-scripts && mkdir -p storage
 
 FROM node:22-slim
-RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    openssl ca-certificates poppler-utils \
+    libreoffice-impress libreoffice-writer libreoffice-calc \
+    fonts-liberation fonts-dejavu fonts-crosextra-carlito fonts-crosextra-caladea \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
 COPY --from=build /app /app

@@ -69,3 +69,37 @@ describe('naturalCompare', () => {
     expect(['slide10.png', 'slide2.png', 'slide1.png'].sort(naturalCompare)).toEqual(['slide1.png', 'slide2.png', 'slide10.png']);
   });
 });
+
+import { guessFileRoles, guessResponseLabel, textToHtml } from './intake';
+
+describe('guessResponseLabel', () => {
+  it('reads common deck filenames', () => {
+    expect(guessResponseLabel('response_a.pptx')).toBe('A');
+    expect(guessResponseLabel('Response B.pdf')).toBe('B');
+    expect(guessResponseLabel('responseC.pptx')).toBe('C');
+    expect(guessResponseLabel('Response A -2024_Southeast_Territory_Strategy_Review.pptx')).toBe('A');
+    expect(guessResponseLabel('response_b (3).pptx')).toBe('B');
+    expect(guessResponseLabel('Output 2.pdf')).toBe('B');
+    expect(guessResponseLabel('Taleryx Sales Data.xlsx')).toBeNull();
+    expect(guessResponseLabel('Doc1.pdf')).toBeNull();
+  });
+
+  it('puts decks in responses and everything else in input files', () => {
+    const roles = guessFileRoles([
+      { id: '1', name: 'response_b.pptx', kind: 'presentation' },
+      { id: '2', name: 'Taleryx Org Chart.docx', kind: 'document' },
+      { id: '3', name: 'response_a.pdf', kind: 'pdf' },
+    ]);
+    expect(roles).toEqual([
+      { fileId: '3', role: 'response', label: 'A' },
+      { fileId: '1', role: 'response', label: 'B' },
+      { fileId: '2', role: 'input', label: null },
+    ]);
+  });
+});
+
+describe('textToHtml', () => {
+  it('keeps paragraphs and escapes markup', () => {
+    expect(textToHtml('Line one\nline two\n\n<b>Next</b>')).toBe('<p>Line one<br>line two</p><p>&lt;b&gt;Next&lt;/b&gt;</p>');
+  });
+});

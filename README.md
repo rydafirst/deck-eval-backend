@@ -19,6 +19,12 @@ Seeded logins: `admin@deckeval.local` / `admin12345`, `reviewer@deckeval.local`,
 
 With `EMAIL_SERVER` empty, magic links print to the console. With `STORAGE_DRIVER=local`, files are kept in `./storage` and served at `/files` through signed links that expire after an hour. For R2 set `STORAGE_DRIVER=s3` plus the `R2_*` variables. `docker compose up -d minio` gives a local S3 on :9000.
 
+## Adding tasks from files
+
+Admins can add a task by dropping in everything they have for it at **Tasks → New task from files**. PDFs and PowerPoint files are turned into slide images on the server, so it needs LibreOffice and Poppler. The Docker image already has both. On a Mac, run `brew install poppler` and `brew install --cask libreoffice` before trying it locally.
+
+There are two modes. **Chat with AI** sends the files and your notes to Claude, which fills in the task and asks about anything unclear. It needs `ANTHROPIC_API_KEY`. **Smart import** needs no key: it sorts files by name (`response-a.pdf` becomes Response A) and you fill in the rest. Both save a draft task, never a published one.
+
 ## Talking to the web app
 
 The web app proxies `/api/*` to this server, so `FILES_BASE_URL` defaults to `/api/files` and the session cookie stays first-party. Set `WEB_URL` to the web app's public URL: magic links and post-login redirects use it.
@@ -39,6 +45,7 @@ The repo includes `railway.json` and a `Dockerfile`. When the container starts, 
    | `COOKIE_SECURE` | `true` |
    | `EMAIL_SERVER` / `EMAIL_FROM` | SMTP for magic links (e.g. Resend or Brevo SMTP). Leave `EMAIL_SERVER` empty to print links to the logs instead |
    | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` | the logins the seed creates |
+   | `ANTHROPIC_API_KEY` | optional, from console.anthropic.com. Turns on Chat with AI for new tasks |
 
    Don't set `PORT`. Railway sets it for you.
 4. Storage. The container's disk is wiped on every deploy, so pick one:
@@ -74,4 +81,5 @@ pnpm typecheck && pnpm lint && pnpm test
 | `GET /dashboard`, `POST /queue/next`, `POST /tasks/:id/claim`, `/unclaim`, `/escalate` | raters |
 | `GET /tasks/:id/workspace`, `PUT /submissions/:id/answers`, `POST /submissions/:id/time`, `POST /submissions/:id/submit` | raters |
 | `GET /reviews`, `GET /reviews/:submissionId`, `POST /reviews/:id/comments`, `POST /reviews/:id/verdict` | reviewers, admins |
+| `/admin/intake/files`, `/admin/intake/chat`, `/admin/intake/tasks`, `/admin/intake/status` | admins |
 | `/admin/tasks/*`, `/admin/templates/*`, `/admin/users`, `/admin/exports`, `/admin/stats`, `/admin/escalations`, `/admin/audit`, `/projects`, `/tags` | admins |
