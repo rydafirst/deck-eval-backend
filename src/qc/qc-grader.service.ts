@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import type { ContentBlockParam, Tool } from '@anthropic-ai/sdk/resources/messages';
+import type { ContentBlockParam, MessageParam, TextBlockParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import sharp from 'sharp';
 import type { QcResult, ResponseRef, RubricFieldDef } from '../shared';
 import { ClaudeClient } from '../ai/claude-client';
@@ -17,6 +17,7 @@ const MAX_IMAGES = 95;
 const MAX_FILE_CHARS = 30_000;
 const SLIDE_WIDTH = 1280;
 const MAX_OUTPUT_TOKENS = 32_000;
+const MAX_ATTEMPTS = 2;
 const IMAGE_FILE = /\.(png|jpe?g|webp|gif)$/i;
 
 type GradingTask = NonNullable<Awaited<ReturnType<QcGraderService['loadTask']>>>;
@@ -49,22 +50,23 @@ export class QcGraderService {
       input_schema: qcInputSchema(fields, responses) as Tool['input_schema'],
     };
 
-    const message = await client.messages
-      .stream({
-        model: config.anthropic.qcModel,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        system: [{ type: 'text', text: await this.systemPrompt(), cache_control: { type: 'ephemeral' } }],
-        tools: [tool],
-        tool_choice: { type: 'tool', name: TOOL_NAME },
-        messages: [{ role: 'user', content: await this.taskContent(task, fields) }],
-      })
-      .finalMessage();
+    const system: TextBlockParam[] = [{ type: 'text', text: await this.systemPrompt(), cache_control: { type: 'ephemeral' } }];
+    const messages: MessageParam[] = [{ role: 'user', content: await this.taskContent(task, fields) }];
 
-    const toolUse = message.content.find((block) => block.type === 'tool_use' && block.name === TOOL_NAME);
-    if (!toolUse || toolUse.type !== 'tool_use') throw new Error('The AI did not return any ratings. Try again.');
-    if (message.stop_reason === 'max_tokens') throw new Error('The ratings were cut off before they finished. Try again.');
-    const input = toolUse.input as QcToolInput;
-    return { answers: toAnswers(input, fields, responses), notes: input.notes?.trim() || null };
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const message = await client.messages
+        .stream({ model: config.anthropic.qcModel, max_tokens: MAX_OUTPUT_TOKENS, system, tools: [tool], messages })
+        .finalMessage();
+      if (message.stop_reason === 'max_tokens') throw new Error('The ratings were cut off before they finished. Try again.');
+
+      const toolUse = message.content.find((block) => block.type === 'tool_use' && block.name === TOOL_NAME);
+      if (toolUse && toolUse.type === 'tool_use') {
+        const input = toolUse.input as QcToolInput;
+        return { answers: toAnswers(input, fields, responses), notes: input.notes?.trim() || null };
+      }
+      messages.push({ role: 'assistant', content: message.content }, { role: 'user', content: `Call ${TOOL_NAME} now with the whole form filled in.` });
+    }
+    throw new Error('The AI did not return any ratings. Try again.');
   }
 
   private loadTask(taskId: string) {
