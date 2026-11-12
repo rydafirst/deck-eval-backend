@@ -84,8 +84,12 @@ export class QcGraderService {
     const intro = `You fill in the rating form for a slide-deck evaluation task on the Deck Eval platform. The admin who runs you will read and edit every answer before submitting, so write each answer exactly as it should appear in its box.
 
 Follow the guides below. They were written for a person rating by hand, so adapt them like this:
-- You cannot ask questions. Where a guide says to ask before scoring (an unclear instruction, a missing file, a rendering doubt), make the best judgement from the files and put the question in "notes".
-- The slide images were rendered from the original files. If text looks cut off or fonts look wrong in a way that may be a rendering problem, mention it in "notes" instead of scoring it as a defect.
+- You cannot ask questions. Where a guide says to ask before scoring (an unclear instruction or a missing file), make the best judgement from the files and put the question in "notes".
+- How the slide images were captured does not matter. They may be photos of a screen, screenshots or exports. Judge every image as a clean, flat, correctly captured copy of the original slide.
+  - Ignore capture effects completely: curved or skewed perspective, glare and reflections, an overall colour cast or tint, blur, moire, the screen edge, anything around the slide, and any caption printed under the photo (such as "Response A - Slide 1 of 10"). Do not score them, do not mention them in any answer, and do not list them in notes.
+  - Everything that is part of the slide itself is the deck: its text, text size and wrapping, overlaps, alignment, spacing, element colours, charts and images. Score what you see. Never explain a visible problem away as a rendering, font or capture issue, and never ask the admin to check a slide in a viewer.
+  - This rule overrides anything in the guides about rendering differences or checking slides in a viewer.
+- Use "notes" only for things you genuinely could not judge, such as a missing input file or a slide too blurred to read. Do not use notes to restate, hedge or second-guess your scores. If there is nothing like that, set notes to null.
 - The form has a separate box for each score and each explanation. Put only the number in a score field. In an explanation box, write the sub-criterion lines for that axis only (for example "Completeness: ..." on its own line, then "Accuracy: ..."), with no axis heading and no "Rating:" line, unless the task instructions ask for them.
 - Write plain text with line breaks. No markdown, no bold, no headings, no bullet symbols unless the task instructions use them.
 - Where the task instructions or the form differ from the guides, follow the task instructions and the form.
