@@ -43,6 +43,7 @@ export class TaskPresenter {
       userRequest: task.userRequest,
       templateVersionId: task.templateVersionId,
       openQueue: task.openQueue,
+      sharedSheet: task.sharedSheet,
       assigneeIds: task.assignments.map((a) => a.userId),
       inputFiles,
       responses,

@@ -1,7 +1,8 @@
 const TRIGGER = /rate each response independently/i;
 
+const RESPONSE_MENTION = /\b(?:response|output)\s+([a-d])\b/gi;
+
 const COMPARATIVE_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
-  { label: 'Response A/B/C/D', pattern: /\b(response|output)\s+[a-d]\b/i },
   { label: 'better', pattern: /\bbetter\b/i },
   { label: 'worse', pattern: /\bworse\b/i },
   { label: 'unlike', pattern: /\bunlike\b/i },
@@ -14,6 +15,9 @@ export function needsIndependenceCheck(instructions: string): boolean {
   return TRIGGER.test(instructions.replace(/<[^>]+>/g, ' '));
 }
 
-export function findComparativeWords(text: string): string[] {
-  return COMPARATIVE_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(({ label }) => label);
+export function findComparativeWords(text: string, ownLabel?: string | null): string[] {
+  const others = [...new Set([...text.matchAll(RESPONSE_MENTION)].map((m) => m[1].toUpperCase()))]
+    .filter((label) => label !== ownLabel?.toUpperCase())
+    .map((label) => `Response ${label}`);
+  return [...others, ...COMPARATIVE_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(({ label }) => label)];
 }

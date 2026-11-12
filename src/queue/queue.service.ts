@@ -27,7 +27,7 @@ export class QueueService {
     const [next, submissions] = await Promise.all([
       this.nextEligible(user.id),
       this.prisma.submission.findMany({
-        where: { userId: user.id },
+        where: { OR: [{ userId: user.id }, { task: { sharedSheet: true, assignments: { some: { userId: user.id, claimedAt: { not: null } } } } }] },
         include: { task: { include: { ...taskSummaryInclude, responses: { select: { id: true, label: true }, orderBy: { order: 'asc' } } } } },
         orderBy: { updatedAt: 'desc' },
       }),
@@ -82,6 +82,7 @@ export class QueueService {
       if (existing) return existing;
 
       const assigned = task.assignments.length > 0;
+      if (task.sharedSheet && !assigned) throw new ConflictException('Only the people an admin adds to this team can join it');
       const hasSlot = task.openQueue && task._count.submissions < task.ratersNeeded;
       if (!assigned && !hasSlot) throw new ConflictException('This task has all the raters it needs');
 
@@ -90,7 +91,8 @@ export class QueueService {
         create: { taskId, userId: user.id, claimedAt: new Date() },
         update: { claimedAt: new Date() },
       });
-      return tx.submission.create({ data: { taskId, userId: user.id, templateVersionId: task.templateVersionId } });
+      const shared = task.sharedSheet ? await tx.submission.findFirst({ where: { taskId }, orderBy: { createdAt: 'asc' } }) : null;
+      return shared ?? tx.submission.create({ data: { taskId, userId: user.id, templateVersionId: task.templateVersionId } });
     });
     await this.status.refresh(taskId);
     await this.audit.log(user.id, 'claim', 'Task', taskId, { submissionId: submission.id });
@@ -98,11 +100,23 @@ export class QueueService {
   }
 
   async unclaim(user: SessionUser, taskId: string) {
-    const submission = await this.prisma.submission.findUnique({ where: { taskId_userId: { taskId, userId: user.id } } });
+    const task = await this.prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { openQueue: true, sharedSheet: true } });
+    const submission = await this.workspace.sheetFor(taskId, task.sharedSheet, user.id);
     if (!submission) throw new NotFoundException('You have not claimed this task');
     if (submission.status !== 'DRAFT') throw new BadRequestException('Only tasks that have not been submitted can be unclaimed');
 
-    const task = await this.prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { openQueue: true } });
+    const teammate = task.sharedSheet
+      ? await this.prisma.assignment.findFirst({ where: { taskId, userId: { not: user.id }, claimedAt: { not: null } }, orderBy: { claimedAt: 'asc' } })
+      : null;
+    if (teammate) {
+      await this.prisma.$transaction([
+        this.prisma.assignment.updateMany({ where: { taskId, userId: user.id }, data: { claimedAt: null } }),
+        ...(submission.userId === user.id ? [this.prisma.submission.update({ where: { id: submission.id }, data: { userId: teammate.userId } })] : []),
+      ]);
+      await this.audit.log(user.id, 'leave', 'Task', taskId, { submissionId: submission.id });
+      return;
+    }
+
     await this.prisma.$transaction([
       this.prisma.submission.delete({ where: { id: submission.id } }),
       task.openQueue
@@ -145,7 +159,8 @@ export class QueueService {
       where: {
         status: { in: [...OPEN_STATUSES] },
         submissions: { none: { userId } },
-        OR: [{ assignments: { some: { userId } } }, { openQueue: true }],
+        assignments: { none: { userId, claimedAt: { not: null } } },
+        OR: [{ assignments: { some: { userId } } }, { openQueue: true, sharedSheet: false }],
       },
       include: { ...taskSummaryInclude, assignments: { where: { userId }, select: { id: true } } },
       orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],

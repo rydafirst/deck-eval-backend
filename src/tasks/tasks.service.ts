@@ -255,7 +255,7 @@ export class TasksService {
           update: {},
         }),
       ),
-      this.prisma.task.update({ where: { id }, data: { openQueue: input.openQueue, ratersNeeded: input.ratersNeeded } }),
+      this.prisma.task.update({ where: { id }, data: { openQueue: input.sharedSheet ? false : input.openQueue, sharedSheet: input.sharedSheet, ratersNeeded: input.sharedSheet ? 1 : input.ratersNeeded } }),
     ]);
     await this.audit.log(userId, 'assign', 'Task', id, { ...input });
     await this.status.refresh(id);
@@ -286,6 +286,7 @@ export class TasksService {
         userRequest: source.userRequest,
         ratersNeeded: source.ratersNeeded,
         openQueue: source.openQueue,
+        sharedSheet: source.sharedSheet,
         templateVersionId: source.project.templateId,
         createdById: userId,
         tags: { create: source.tags.map((t) => ({ tagId: t.tagId })) },

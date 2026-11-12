@@ -10,6 +10,7 @@ import { IntakeModule } from './intake/intake.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
+import { LiveModule } from './live/live.module';
 import { QcModule } from './qc/qc.module';
 import { QueueModule } from './queue/queue.module';
 import { ReviewsModule } from './reviews/reviews.module';
@@ -42,6 +43,7 @@ import { UsersModule } from './users/users.module';
     BootstrapModule,
     IntakeModule,
     QcModule,
+    LiveModule,
     GuidesModule,
     JobsModule,
     HumaniseModule,

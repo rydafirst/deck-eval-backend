@@ -16,6 +16,7 @@ export const briefSchema = z.object({
 
 export const assignmentSchema = z.object({
   openQueue: z.boolean(),
+  sharedSheet: z.boolean().default(false),
   assigneeIds: z.array(z.string()),
   ratersNeeded: z.number().int().min(1).max(50),
 });

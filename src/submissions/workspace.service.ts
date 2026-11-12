@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  answerKey, type AnswerMap, type AnswerValue, type ReviewCommentDTO, type SessionUser, type SubmissionDTO, type WorkspaceDTO,
+  answerKey, type AnswerMap, type AnswerValue, type ReviewCommentDTO, type SessionUser, type SubmissionDTO, type TeamMemberDTO, type WorkspaceDTO,
 } from '../shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskPresenter } from '../tasks/task.presenter';
@@ -23,7 +23,7 @@ export class WorkspaceService {
     if (!task) throw new NotFoundException('Task not found');
     if (!VISIBLE_TO_RATERS.includes(task.status) && user.role !== 'ADMIN') throw new NotFoundException('Task not found');
 
-    const submission = await this.prisma.submission.findUnique({ where: { taskId_userId: { taskId, userId: user.id } } });
+    const submission = await this.sheetFor(taskId, task.sharedSheet, user.id);
     const editable = submission && (submission.status === 'DRAFT' || submission.status === 'RETURNED');
     return {
       task: await this.presenter.detail(task),
@@ -57,11 +57,32 @@ export class WorkspaceService {
     };
   }
 
-  async ownedSubmission(submissionId: string, userId: string) {
-    const submission = await this.prisma.submission.findUnique({ where: { id: submissionId } });
+  async sheetFor(taskId: string, sharedSheet: boolean, userId: string) {
+    const own = await this.prisma.submission.findUnique({ where: { taskId_userId: { taskId, userId } } });
+    if (own || !sharedSheet || !(await this.joined(taskId, userId))) return own;
+    return this.prisma.submission.findFirst({ where: { taskId }, orderBy: { createdAt: 'asc' } });
+  }
+
+  async memberSubmission(submissionId: string, userId: string) {
+    const submission = await this.prisma.submission.findUnique({ where: { id: submissionId }, include: { task: { select: { sharedSheet: true } } } });
     if (!submission) throw new NotFoundException('Submission not found');
-    if (submission.userId !== userId) throw new ForbiddenException();
-    return submission;
+    if (submission.userId === userId) return submission;
+    if (submission.task.sharedSheet && (await this.joined(submission.taskId, userId))) return submission;
+    throw new ForbiddenException();
+  }
+
+  async team(taskId: string): Promise<TeamMemberDTO[]> {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { sharedSheet: true, assignments: { include: { user: { select: { name: true, email: true } } }, orderBy: { claimedAt: 'asc' } } },
+    });
+    if (!task?.sharedSheet) return [];
+    return task.assignments.map((a) => ({ id: a.userId, name: a.user.name ?? a.user.email, joined: a.claimedAt !== null }));
+  }
+
+  private async joined(taskId: string, userId: string) {
+    const assignment = await this.prisma.assignment.findUnique({ where: { taskId_userId: { taskId, userId } } });
+    return assignment?.claimedAt != null;
   }
 
   async answers(submissionId: string): Promise<AnswerMap> {
@@ -102,6 +123,7 @@ export class WorkspaceService {
       comments,
       raterName: submission.user.name,
       raterEmail: submission.user.email,
+      team: await this.team(submission.taskId),
     };
   }
 }

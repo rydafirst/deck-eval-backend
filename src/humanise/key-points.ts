@@ -26,3 +26,9 @@ export function missingKeyPoints(original: string, rewrite: string): string[] {
   }
   return missing;
 }
+
+export function stripEchoedLabel(text: string, label: string): string {
+  const [first, ...rest] = text.split('\n');
+  const normalise = (value: string) => value.replace(/[\s·:\-–]+/g, ' ').trim().toLowerCase();
+  return rest.length && normalise(first) === normalise(label) ? rest.join('\n').trim() : text;
+}

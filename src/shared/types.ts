@@ -66,6 +66,7 @@ export interface TaskDetailDTO extends TaskSummaryDTO {
   responses: ResponseDTO[];
   assigneeIds: string[];
   openQueue: boolean;
+  sharedSheet: boolean;
 }
 
 export interface ReviewCommentDTO {
@@ -88,6 +89,13 @@ export interface SubmissionDTO {
   comments: ReviewCommentDTO[];
   raterName: string | null;
   raterEmail: string;
+  team: TeamMemberDTO[];
+}
+
+export interface TeamMemberDTO {
+  id: string;
+  name: string;
+  joined: boolean;
 }
 
 export interface WorkspaceDTO {

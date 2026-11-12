@@ -59,7 +59,8 @@ describe('independence check', () => {
   });
 
   it('finds comparative words', () => {
-    expect(findComparativeWords('Better layout than Response B')).toEqual(['Response A/B/C/D', 'better']);
+    expect(findComparativeWords('Better layout than Response B', 'A')).toEqual(['Response B', 'better']);
+    expect(findComparativeWords('Response A: slide 7 needs a rebuild', 'A')).toEqual([]);
     expect(findComparativeWords('Clean layout with good spacing')).toEqual([]);
   });
 });

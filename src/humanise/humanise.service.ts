@@ -7,7 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { GuidesService } from '../guides/guides.service';
 import { JobsService } from '../jobs/jobs.service';
 import { describeAiError } from '../ai/ai-error';
-import { missingKeyPoints } from './key-points';
+import { missingKeyPoints, stripEchoedLabel } from './key-points';
 
 const MAX_ROUNDS = 3;
 const TARGET_SCORE = 10;
@@ -37,7 +37,7 @@ function parseReview(raw: string): Review {
 }
 
 function writePrompt(item: HumaniseItem, previous?: string, problems: string[] = []): string {
-  const base = `Answer box: ${item.label}\n\nOriginal text:\n${item.text}`;
+  const base = `The text is written in this answer box (for context only; do not write the box name in your text): ${item.label}\n\nOriginal text:\n${item.text}`;
   if (!previous) return base;
   return `${base}\n\nYour last rewrite:\n${previous}\n\nA reviewer found these problems. Fix every one of them and rewrite again from the original:\n${problems.map((p) => `- ${p}`).join('\n')}`;
 }
@@ -103,9 +103,9 @@ export class HumaniseService {
   }
 
   private async write(mode: HumaniseMode, item: HumaniseItem, prompts: Prompts, previous?: string, problems?: string[]): Promise<string> {
-    const draft = await this.openai.complete(prompts.writer, writePrompt(item, previous, problems));
+    const draft = stripEchoedLabel(await this.openai.complete(prompts.writer, writePrompt(item, previous, problems)), item.label);
     if (mode === 'chatgpt') return draft;
-    return this.claude.complete(prompts.refiner, `${writePrompt(item, previous, problems)}\n\nDraft rewrite from the other writer:\n${draft}`);
+    return stripEchoedLabel(await this.claude.complete(prompts.refiner, `${writePrompt(item, previous, problems)}\n\nDraft rewrite from the other writer:\n${draft}`), item.label);
   }
 
   private async review(mode: HumaniseMode, item: HumaniseItem, prompts: Prompts, rewrite: string): Promise<Review> {

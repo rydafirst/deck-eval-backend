@@ -43,8 +43,8 @@ export class SubmissionsService {
         const value = toJson(a.value ?? null);
         return this.prisma.answer.upsert({
           where: { submissionId_fieldId_scope: { submissionId, fieldId: a.fieldId, scope } },
-          create: { submissionId, fieldId: a.fieldId, responseId: a.responseId, scope, value },
-          update: { value },
+          create: { submissionId, fieldId: a.fieldId, responseId: a.responseId, scope, value, updatedById: user.id },
+          update: { value, updatedById: user.id },
         });
       }),
     );
@@ -79,7 +79,7 @@ export class SubmissionsService {
   }
 
   private async editable(submissionId: string, userId: string) {
-    const submission = await this.workspace.ownedSubmission(submissionId, userId);
+    const submission = await this.workspace.memberSubmission(submissionId, userId);
     if (submission.status !== 'DRAFT' && submission.status !== 'RETURNED') {
       throw new BadRequestException('This submission can no longer be edited');
     }

@@ -131,6 +131,7 @@ model Task {
   userRequest       String       @default("")
   ratersNeeded      Int          @default(1)
   openQueue         Boolean      @default(true)
+  sharedSheet       Boolean      @default(false)
   templateVersionId String
   inputFiles        InputFile[]
   responses         Response[]
@@ -226,9 +227,11 @@ model Answer {
   responseId   String?
   scope        String
   value        Json
+  updatedById  String?
   updatedAt    DateTime   @updatedAt
 
   @@unique([submissionId, fieldId, scope])
+  @@index([submissionId, updatedAt])
 }
 
 model Review {
