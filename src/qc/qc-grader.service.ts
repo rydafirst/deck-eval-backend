@@ -117,7 +117,9 @@ Follow the guides below. They were written for a person rating by hand, so adapt
       for (const [index, slide] of response.slides.entries()) {
         const text = slideText[index]?.trim();
         blocks.push({ type: 'text', text: `Response ${response.label}, slide ${index + 1}${text ? `. Text on this slide:\n${text}` : ''}` });
-        blocks.push(await this.imageBlock(slide.webKey));
+        blocks.push(await this.imageBlock(slide.webKey).catch(() => {
+          throw new BadRequestException(`Response ${response.label}, slide ${index + 1} has no image in storage. Delete it and upload the slide again on the Responses step.`);
+        }));
       }
     }
 

@@ -300,17 +300,16 @@ export class TasksService {
   }
 
   async remove(userId: string, id: string) {
-    await this.assertNoSubmissions(id);
     const task = await this.prisma.task.findUniqueOrThrow({
       where: { id },
-      include: { inputFiles: true, responses: { include: { slides: true, files: true } } },
+      include: { inputFiles: true, responses: { include: { slides: true, files: true } }, _count: { select: { submissions: true } } },
     });
     await this.prisma.task.delete({ where: { id } });
     await this.releaseKeys([
       ...task.inputFiles.map((f) => f.storageKey),
       ...task.responses.flatMap((r) => [...r.slides.flatMap((s) => [s.storageKey, s.webKey]), ...r.files.map((f) => f.storageKey)]),
     ]);
-    await this.audit.log(userId, 'delete', 'Task', id);
+    await this.audit.log(userId, 'delete', 'Task', id, { title: task.title, submissions: task._count.submissions });
   }
 
   private assertPublishable(task: TaskDetailDTO) {
