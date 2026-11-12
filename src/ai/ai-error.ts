@@ -10,9 +10,11 @@ interface Provider {
 const CLAUDE: Provider = { name: 'Claude', keyVar: 'ANTHROPIC_API_KEY', modelVar: 'ANTHROPIC_MODEL' };
 const CHATGPT: Provider = { name: 'ChatGPT', keyVar: 'OPENAI_API_KEY', modelVar: 'OPENAI_MODEL' };
 
+const SECRET = /\b(sk-[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+/g;
+
 function detailOf(error: { error?: unknown; message: string }): string {
   const body = error.error as { error?: { message?: string }; message?: string } | undefined;
-  return body?.error?.message ?? body?.message ?? error.message;
+  return (body?.error?.message ?? body?.message ?? error.message).replace(SECRET, '$1…(hidden)');
 }
 
 function explain(provider: Provider, status: number | undefined, detail: string): string {

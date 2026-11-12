@@ -1,5 +1,17 @@
 import 'dotenv/config';
 
+const looksLikeKey = (value: string) => /^sk-/i.test(value.trim());
+
+function modelSetting(name: string, fallback: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) return fallback;
+  if (looksLikeKey(value)) {
+    console.error(`${name} holds an API key, not a model name. Using ${fallback} instead. Put the key in the matching *_API_KEY variable.`);
+    return fallback;
+  }
+  return value;
+}
+
 function required(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (!value) throw new Error(`Missing environment variable ${name}`);
@@ -36,13 +48,13 @@ export const config = {
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
-    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
-    qcModel: process.env.ANTHROPIC_QC_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+    model: modelSetting('ANTHROPIC_MODEL', 'claude-sonnet-5-5'),
+    qcModel: modelSetting('ANTHROPIC_QC_MODEL', modelSetting('ANTHROPIC_MODEL', 'claude-sonnet-5-5')),
     baseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY ?? '',
-    model: process.env.OPENAI_MODEL || 'gpt-6.1-sol',
+    model: modelSetting('OPENAI_MODEL', 'gpt-6.1-sol'),
     baseUrl: process.env.OPENAI_BASE_URL || undefined,
   },
   limits: {

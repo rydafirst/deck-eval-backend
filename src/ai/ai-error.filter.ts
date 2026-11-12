@@ -9,7 +9,7 @@ export class AiErrorFilter implements ExceptionFilter {
   private readonly logger = new Logger(AiErrorFilter.name);
 
   catch(error: Error, host: ArgumentsHost) {
-    this.logger.error(`AI request failed: ${error.message}`);
+    this.logger.error(`AI request failed: ${error.message.replace(/\bsk-[A-Za-z0-9_-]+/g, 'sk-…(hidden)')}`);
     const message = describeAiError(error) ?? 'The AI request failed. Try again.';
     host.switchToHttp().getResponse<Response>().status(HttpStatus.BAD_GATEWAY).json({ statusCode: HttpStatus.BAD_GATEWAY, message });
   }
