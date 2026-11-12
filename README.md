@@ -25,6 +25,19 @@ Admins can add a task by dropping in everything they have for it at **Tasks → 
 
 There are two modes. **Chat with AI** sends the files and your notes to Claude, which fills in the task and asks about anything unclear. It needs `ANTHROPIC_API_KEY`. **Smart import** needs no key: it sorts files by name (`response-a.pdf` becomes Response A) and you fill in the rest. Both save a draft task, never a published one.
 
+## QC button
+
+Admins see a **QC** button in the rating screen. It sends the brief, the input files and every slide of every response to Claude, which scores each axis, writes each explanation and fills in the ranking. Nothing is submitted: the answers land in the form for you to read and edit. QC follows the four guides under **AI rules** in the admin menu. They start as the text in `src/guides/defaults` and can be edited there without a redeploy. It needs `ANTHROPIC_API_KEY`. Set `ANTHROPIC_QC_MODEL` to grade with a different model from the task assistant.
+
+## Humanise buttons
+
+Under every written answer, admins get two buttons, and **Humanise all** at the top runs either one on every box:
+
+- **ChatGPT humanise**: ChatGPT rewrites the text so it reads like a person wrote it.
+- **Human humanise**: ChatGPT drafts a rewrite in your voice from your writing sample, then Claude checks it against the original and the sample and adds a few small slips like yours.
+
+After each rewrite the AI scores how human it reads out of 10 and rewrites again with its own feedback until it reaches 10/10, up to three rounds. ChatGPT scores ChatGPT humanise; Claude scores Human humanise. Key points are protected twice: code checks that every quote, figure, slide number and line label is still there, and the AI check confirms no finding was dropped or changed. If a key point is still missing after the last round, the box keeps your original text and shows a warning. The prompts and your writing sample are under **AI rules**. Needs `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY` for Human humanise.
+
 ## Talking to the web app
 
 The web app proxies `/api/*` to this server, so `FILES_BASE_URL` defaults to `/api/files` and the session cookie stays first-party. Set `WEB_URL` to the web app's public URL: magic links and post-login redirects use it.
@@ -45,7 +58,10 @@ The repo includes `railway.json` and a `Dockerfile`. When the container starts, 
    | `COOKIE_SECURE` | `true` |
    | `EMAIL_SERVER` / `EMAIL_FROM` | SMTP for magic links (e.g. Resend or Brevo SMTP). Leave `EMAIL_SERVER` empty to print links to the logs instead |
    | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` | the logins the seed creates |
-   | `ANTHROPIC_API_KEY` | optional, from console.anthropic.com. Turns on Chat with AI for new tasks |
+   | `ANTHROPIC_API_KEY` | optional, from console.anthropic.com. Turns on Chat with AI for new tasks and the QC button |
+   | `ANTHROPIC_QC_MODEL` | optional. The model QC grades with. Defaults to `ANTHROPIC_MODEL` |
+   | `OPENAI_API_KEY` | optional, from platform.openai.com. Turns on the Humanise buttons |
+   | `OPENAI_MODEL` | optional. Defaults to `gpt-6.1-sol` |
 
    Don't set `PORT`. Railway sets it for you.
 4. Storage. The container's disk is wiped on every deploy, so pick one:
@@ -81,5 +97,6 @@ pnpm typecheck && pnpm lint && pnpm test
 | `GET /dashboard`, `POST /queue/next`, `POST /tasks/:id/claim`, `/unclaim`, `/escalate` | raters |
 | `GET /tasks/:id/workspace`, `PUT /submissions/:id/answers`, `POST /submissions/:id/time`, `POST /submissions/:id/submit` | raters |
 | `GET /reviews`, `GET /reviews/:submissionId`, `POST /reviews/:id/comments`, `POST /reviews/:id/verdict` | reviewers, admins |
+| `POST /submissions/:id/qc`, `POST /admin/humanise`, `GET /admin/jobs/:id`, `/admin/guides` | admins |
 | `/admin/intake/files`, `/admin/intake/chat`, `/admin/intake/tasks`, `/admin/intake/status` | admins |
 | `/admin/tasks/*`, `/admin/templates/*`, `/admin/users`, `/admin/exports`, `/admin/stats`, `/admin/escalations`, `/admin/audit`, `/projects`, `/tags` | admins |

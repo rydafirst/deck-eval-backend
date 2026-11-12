@@ -276,3 +276,16 @@ model AuditLog {
 
   @@index([entity, entityId])
 }
+
+/// Editable AI instructions for QC and Humanise. Seeded from the defaults in src/guides/defaults.
+model Guide {
+  key         String   @id
+  title       String
+  group       String   @default("qc")
+  position    Int
+  body        String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("QcGuide")
+}

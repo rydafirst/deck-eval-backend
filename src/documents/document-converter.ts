@@ -19,6 +19,8 @@ async function withTempDir<T>(work: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
+const PLAIN_TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'json'];
+
 @Injectable()
 export class DocumentConverter {
   private officeQueue: Promise<unknown> = Promise.resolve();
@@ -48,6 +50,13 @@ export class DocumentConverter {
       const pages = (await readdir(dir)).filter((name) => name.startsWith('page') && name.endsWith('.png')).sort(naturalCompare);
       return Promise.all(pages.map((name) => readFile(join(dir, name))));
     });
+  }
+
+  async textOf(buffer: Buffer, extension: string): Promise<string> {
+    const ext = extension.replace(/^\./, '').toLowerCase();
+    if (PLAIN_TEXT_EXTENSIONS.includes(ext)) return buffer.toString('utf8');
+    const pdf = ext === 'pdf' ? buffer : await this.toPdf(buffer, ext);
+    return this.pdfText(pdf);
   }
 
   pdfText(pdf: Buffer): Promise<string> {

@@ -4,9 +4,13 @@ import { AuthModule } from './auth/auth.module';
 import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { ExportsModule } from './exports/exports.module';
 import { HealthController } from './health.controller';
+import { GuidesModule } from './guides/guides.module';
+import { HumaniseModule } from './humanise/humanise.module';
 import { IntakeModule } from './intake/intake.module';
+import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
+import { QcModule } from './qc/qc.module';
 import { QueueModule } from './queue/queue.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { StatsModule } from './stats/stats.module';
@@ -37,6 +41,10 @@ import { UsersModule } from './users/users.module';
     StatsModule,
     BootstrapModule,
     IntakeModule,
+    QcModule,
+    GuidesModule,
+    JobsModule,
+    HumaniseModule,
   ],
   controllers: [HealthController],
 })

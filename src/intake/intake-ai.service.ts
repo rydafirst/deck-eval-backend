@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { ContentBlockParam, MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import { RESPONSE_LABELS, type IntakeReply, type IntakeTurn, type TaskDraft } from '../shared';
+import { ClaudeClient } from '../ai/claude-client';
 import { config } from '../config';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -26,24 +26,19 @@ interface DraftToolInput {
 
 @Injectable()
 export class IntakeAiService {
-  private readonly client = config.anthropic.apiKey
-    ? new Anthropic({ apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseUrl })
-    : null;
-
   constructor(
+    private readonly ai: ClaudeClient,
     private readonly prisma: PrismaService,
     private readonly files: IntakeFilesService,
     private readonly storage: StorageService,
   ) {}
 
   get enabled() {
-    return this.client !== null;
+    return this.ai.enabled;
   }
 
   async chat(turns: IntakeTurn[]): Promise<IntakeReply> {
-    if (!this.client) {
-      throw new ServiceUnavailableException('AI is not set up yet. Add ANTHROPIC_API_KEY to the API server, or use Smart import.');
-    }
+    const client = this.ai.require('AI is not set up yet. Add ANTHROPIC_API_KEY to the API server, or use Smart import.');
     const fileIds = [...new Set(turns.flatMap((t) => [...t.fileIds, ...(t.draft?.files.map((f) => f.fileId) ?? [])]))];
     const manifests = await this.files.manifests(fileIds);
     const notReady = manifests.find((m) => m.status !== 'ready');
@@ -58,7 +53,7 @@ export class IntakeAiService {
     if (projects.length === 0) throw new BadRequestException('Create a project before adding tasks');
 
     const messages = await this.toMessages(turns, manifests, alias);
-    const response = await this.client.messages.create({
+    const response = await client.messages.create({
       model: config.anthropic.model,
       max_tokens: MAX_OUTPUT_TOKENS,
       system: this.systemPrompt(projects, tags.map((t) => t.name)),

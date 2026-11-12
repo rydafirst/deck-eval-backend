@@ -5,7 +5,7 @@ import type { IntakeFileDTO, IntakeFileKind, IntakeFileStatus } from '../shared'
 import { config } from '../config';
 import { StorageService } from '../storage/storage.service';
 import { UploadsService, type StoredImage } from '../uploads/uploads.service';
-import { DocumentConverter } from './document-converter';
+import { DocumentConverter } from '../documents/document-converter';
 
 const FILE_TYPES: Record<string, { kind: IntakeFileKind; mime: string }> = {
   '.pdf': { kind: 'pdf', mime: 'application/pdf' },

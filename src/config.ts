@@ -37,7 +37,13 @@ export const config = {
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+    qcModel: process.env.ANTHROPIC_QC_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
     baseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
+  },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY ?? '',
+    model: process.env.OPENAI_MODEL || 'gpt-6.1-sol',
+    baseUrl: process.env.OPENAI_BASE_URL || undefined,
   },
   limits: {
     intakeBytes: 80 * 1024 * 1024,

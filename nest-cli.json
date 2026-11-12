@@ -1,1 +1,9 @@
-{ "collection": "@nestjs/schematics", "sourceRoot": "src", "compilerOptions": { "deleteOutDir": true, "tsConfigPath": "tsconfig.build.json" } }
+{
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "tsConfigPath": "tsconfig.build.json",
+    "assets": [{ "include": "guides/defaults/*.md", "watchAssets": true }]
+  }
+}
