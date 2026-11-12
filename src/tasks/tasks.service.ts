@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { TaskPresenter } from './task.presenter';
-import type { AssignmentInput, BasicsInput, BriefInput } from './task.schema';
+import type { AssignmentInput, BasicsInput, BriefInput, SlideMoveInput } from './task.schema';
 import { TaskStatusService } from './task-status.service';
 import { TasksRepository, type TaskFilters } from './tasks.repository';
 
@@ -157,6 +157,37 @@ export class TasksService {
       });
     }
     await this.audit.log(userId, 'upload', 'Response', responseId, { slides: files.length });
+    return this.get(id);
+  }
+
+  async moveSlides(userId: string, id: string, input: SlideMoveInput) {
+    const task = await this.get(id);
+    if (task.submissionCount > 0) throw new BadRequestException('Slides cannot move between responses once the task has submissions');
+    if (!task.responses.some((r) => r.id === input.responseId)) throw new BadRequestException('That response is not part of this task');
+
+    const moving = [...new Set(input.slideIds)];
+    const slides = await this.prisma.slide.findMany({ where: { id: { in: moving }, response: { taskId: id } }, select: { id: true, responseId: true } });
+    if (slides.length !== moving.length) throw new BadRequestException('Some slides are not part of this task');
+
+    const ordered = await this.prisma.slide.findMany({
+      where: { responseId: { in: [...new Set([input.responseId, ...slides.map((s) => s.responseId)])] } },
+      orderBy: { order: 'asc' },
+      select: { id: true, responseId: true },
+    });
+    const staying = ordered.filter((s) => s.responseId === input.responseId && !moving.includes(s.id)).map((s) => s.id);
+    const at = Math.min(input.index ?? staying.length, staying.length);
+    const target = [...staying.slice(0, at), ...moving, ...staying.slice(at)];
+    const sources = [...new Set(slides.map((s) => s.responseId))].filter((r) => r !== input.responseId);
+
+    await this.prisma.$transaction([
+      ...target.map((slideId, order) => this.prisma.slide.update({ where: { id: slideId }, data: { responseId: input.responseId, order } })),
+      ...sources.flatMap((responseId) =>
+        ordered
+          .filter((s) => s.responseId === responseId && !moving.includes(s.id))
+          .map((s, order) => this.prisma.slide.update({ where: { id: s.id }, data: { order } })),
+      ),
+    ]);
+    await this.audit.log(userId, 'move', 'Slide', input.responseId, { slides: moving.length, taskId: id });
     return this.get(id);
   }
 

@@ -6,8 +6,8 @@ import type { SessionUser } from '../shared';
 import { CurrentUser, Roles } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import {
-  assignmentSchema, basicsSchema, briefSchema, slideCaptionSchema, slideOrderSchema, statusSchema,
-  type AssignmentInput, type BasicsInput, type BriefInput,
+  assignmentSchema, basicsSchema, briefSchema, slideCaptionSchema, slideMoveSchema, slideOrderSchema, statusSchema,
+  type AssignmentInput, type BasicsInput, type BriefInput, type SlideMoveInput,
 } from './task.schema';
 import { TasksService } from './tasks.service';
 
@@ -111,6 +111,11 @@ export class TasksController {
     @Body(new ZodPipe(slideOrderSchema)) body: { slideIds: string[] },
   ) {
     return this.tasks.reorderSlides(user.id, id, responseId, body.slideIds);
+  }
+
+  @Put(':id/slides/move')
+  move(@CurrentUser() user: SessionUser, @Param('id') id: string, @Body(new ZodPipe(slideMoveSchema)) body: SlideMoveInput) {
+    return this.tasks.moveSlides(user.id, id, body);
   }
 
   @Patch(':id/slides/:slideId')

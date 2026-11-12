@@ -20,7 +20,7 @@ interface DraftToolInput {
   raters_needed?: number;
   instructions_html: string;
   user_request_html: string;
-  files: Array<{ file: string; role: 'response' | 'input' | 'ignore'; label?: string | null }>;
+  files: Array<{ file: string; role: 'response' | 'combined' | 'input' | 'ignore'; label?: string | null; labels?: string[] }>;
   notes?: string | null;
 }
 
@@ -117,7 +117,8 @@ How to fill the draft:
 - instructions_html: the rating instructions for raters. Keep the admin's wording exactly. Do not summarise, shorten, reword or add anything. If instructions are in a screenshot or PDF, transcribe them word for word.
 - user_request_html: the request the deck generator received, word for word.
 - Use only these HTML tags: p, br, strong, em, ul, ol, li, h2, h3, blockquote, a.
-- files: give every attached file a role. "response" with a label A-D for each response deck or response slide image, "input" for source material the generator was given, "ignore" for screenshots you transcribed or files that are not part of the task. Within one response, list files in slide order.
+- files: give every attached file a role. "response" with a label A-D for each response deck or response slide image, "combined" with labels (for example ["A","B","C","D"]) for one file that holds several responses together, "input" for source material the generator was given, "ignore" for screenshots you transcribed or files that are not part of the task. Within one response, list files in slide order.
+- A combined file is fine. Do not ask the admin to split it. The task gets an empty placeholder for each response it covers, the combined file is attached to each of them, and the admin uploads the slide images later. Say this in notes.
 - Work out response labels from file names and content (for example "response_b.pptx", "Output 2", or a slide titled "Response C"). If two decks could be either label, ask instead of guessing.
 - title: a short, specific name for the task, usually the deck topic.
 - project_id: one of: ${projects.map((p) => `${p.id} (${p.name})`).join(', ')}. Pick the closest match; use the first if unsure.
@@ -156,8 +157,9 @@ How to talk:
               type: 'object',
               properties: {
                 file: fileProperty,
-                role: { type: 'string', enum: ['response', 'input', 'ignore'] },
-                label: { type: ['string', 'null'], enum: [...RESPONSE_LABELS, null] },
+                role: { type: 'string', enum: ['response', 'combined', 'input', 'ignore'] },
+                label: { type: ['string', 'null'], enum: [...RESPONSE_LABELS, null], description: 'For a response file' },
+                labels: { type: 'array', items: { type: 'string', enum: [...RESPONSE_LABELS] }, description: 'For a combined file: every response it holds' },
               },
               required: ['file', 'role'],
             },
@@ -173,8 +175,13 @@ How to talk:
     const files = (input.files ?? [])
       .filter((f) => byAlias.has(f.file))
       .map((f) => {
+        const fileId = byAlias.get(f.file)!.id;
+        if (f.role === 'combined') {
+          const labels = RESPONSE_LABELS.filter((l) => f.labels?.includes(l));
+          return labels.length ? { fileId, role: 'combined' as const, label: null, labels } : { fileId, role: 'input' as const, label: null };
+        }
         const label = f.role === 'response' && RESPONSE_LABELS.includes(f.label as never) ? (f.label as TaskDraft['files'][number]['label']) : null;
-        return { fileId: byAlias.get(f.file)!.id, role: f.role === 'response' && !label ? 'input' : f.role, label };
+        return { fileId, role: f.role === 'response' && !label ? 'input' : f.role, label };
       });
     const assigned = new Set(files.map((f) => f.fileId));
     for (const manifest of byAlias.values()) {
@@ -205,7 +212,7 @@ How to talk:
       raters_needed: draft.ratersNeeded,
       instructions_html: draft.instructionsHtml,
       user_request_html: draft.userRequestHtml,
-      files: draft.files.map((f) => ({ file: alias.get(f.fileId) ?? f.fileId, role: f.role, label: f.label })),
+      files: draft.files.map((f) => ({ file: alias.get(f.fileId) ?? f.fileId, role: f.role, label: f.label, labels: f.labels })),
       notes: draft.notes,
     };
   }

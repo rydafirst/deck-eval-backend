@@ -1,9 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { RESPONSE_LABELS, responseLabel, type TaskDraft } from '../shared';
+import { responseLabel, responseLabelsIn, type TaskDraft } from '../shared';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TasksService } from '../tasks/tasks.service';
 import { IntakeFilesService, type IntakeManifest } from './intake-files.service';
+
+interface ResponseGroup {
+  slides: IntakeManifest[];
+  combined: IntakeManifest[];
+}
 
 const TAG_COLOURS = ['#4176C5', '#EC905D', '#C4597C', '#8FD1DC', '#F3B2AF', '#DCE88C', '#8DD0FB', '#F8E87D'];
 
@@ -43,7 +48,7 @@ export class IntakeService {
 
     for (const [order, group] of responseGroups.entries()) {
       const response = await this.prisma.response.create({ data: { taskId: task.id, label: responseLabel(order), order } });
-      const pages = group.flatMap((m) => m.pages);
+      const pages = group.slides.flatMap((m) => m.pages);
       await this.prisma.slide.createMany({
         data: pages.map((page, index) => ({
           responseId: response.id,
@@ -54,7 +59,7 @@ export class IntakeService {
           height: page.height,
         })),
       });
-      const decks = group.filter((m) => m.kind !== 'image');
+      const decks = [...group.slides.filter((m) => m.kind !== 'image'), ...group.combined];
       if (decks.length) {
         await this.prisma.responseFile.createMany({
           data: decks.map((m) => ({ responseId: response.id, name: m.name, storageKey: m.originalKey, mime: m.mime, size: m.size })),
@@ -66,16 +71,18 @@ export class IntakeService {
     return { taskId: task.id };
   }
 
-  private groupResponses(draft: TaskDraft, manifests: Map<string, IntakeManifest>): IntakeManifest[][] {
-    const groups = RESPONSE_LABELS.map((label) =>
-      draft.files.filter((f) => f.role === 'response' && f.label === label).map((f) => manifests.get(f.fileId)!),
-    ).filter((group) => group.length > 0);
+  private groupResponses(draft: TaskDraft, manifests: Map<string, IntakeManifest>): ResponseGroup[] {
+    const groups = responseLabelsIn(draft.files).map((label) => ({
+      slides: draft.files.filter((f) => f.role === 'response' && f.label === label).map((f) => manifests.get(f.fileId)!),
+      combined: draft.files.filter((f) => f.role === 'combined' && f.labels?.includes(label)).map((f) => manifests.get(f.fileId)!),
+    }));
 
-    for (const manifest of groups.flat()) {
+    for (const manifest of groups.flatMap((g) => g.slides)) {
       if (manifest.pages.length === 0) throw new BadRequestException(`${manifest.name} has no slides, so it can't be a response`);
     }
     return groups;
   }
+
 
   private async tagIds(names: string[]): Promise<string[]> {
     const ids: string[] = [];

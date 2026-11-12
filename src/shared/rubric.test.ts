@@ -70,7 +70,7 @@ describe('naturalCompare', () => {
   });
 });
 
-import { guessFileRoles, guessResponseLabel, textToHtml } from './intake';
+import { guessCombinedLabels, guessFileRoles, guessResponseLabel, responseLabelsIn, textToHtml } from './intake';
 
 describe('guessResponseLabel', () => {
   it('reads common deck filenames', () => {
@@ -101,5 +101,22 @@ describe('guessResponseLabel', () => {
 describe('textToHtml', () => {
   it('keeps paragraphs and escapes markup', () => {
     expect(textToHtml('Line one\nline two\n\n<b>Next</b>')).toBe('<p>Line one<br>line two</p><p>&lt;b&gt;Next&lt;/b&gt;</p>');
+  });
+});
+
+describe('combined response files', () => {
+  it('reads a label range from the file name', () => {
+    expect(guessCombinedLabels('Data_Warehouse_Responses_A-D.pdf')).toEqual(['A', 'B', 'C', 'D']);
+    expect(guessCombinedLabels('responses a to c.pptx')).toEqual(['A', 'B', 'C']);
+    expect(guessCombinedLabels('Response_A.pdf')).toBeNull();
+  });
+
+  it('marks the file as combined and lists every response it covers', () => {
+    const roles = guessFileRoles([
+      { id: '1', name: 'Data_Warehouse_Responses_A-D.pdf', kind: 'pdf' },
+      { id: '2', name: 'Query_Performance.xlsx', kind: 'document' },
+    ]);
+    expect(roles[0]).toEqual({ fileId: '1', role: 'combined', label: null, labels: ['A', 'B', 'C', 'D'] });
+    expect(responseLabelsIn([...roles, { fileId: '3', role: 'response', label: 'B' }])).toEqual(['A', 'B', 'C', 'D']);
   });
 });

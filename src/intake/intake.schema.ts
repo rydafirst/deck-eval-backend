@@ -3,8 +3,9 @@ import { RESPONSE_LABELS } from '../shared';
 
 export const draftFileSchema = z.object({
   fileId: z.string().min(1),
-  role: z.enum(['response', 'input', 'ignore']),
+  role: z.enum(['response', 'combined', 'input', 'ignore']),
   label: z.enum(RESPONSE_LABELS).nullable(),
+  labels: z.array(z.enum(RESPONSE_LABELS)).max(RESPONSE_LABELS.length).optional(),
 });
 
 export const taskDraftSchema = z.object({

@@ -21,6 +21,12 @@ export const assignmentSchema = z.object({
 });
 
 export const slideOrderSchema = z.object({ slideIds: z.array(z.string()).min(1) });
+export const slideMoveSchema = z.object({
+  slideIds: z.array(z.string()).min(1).max(500),
+  responseId: z.string().min(1),
+  index: z.number().int().min(0).optional(),
+});
+export type SlideMoveInput = z.infer<typeof slideMoveSchema>;
 export const slideCaptionSchema = z.object({ caption: z.string().max(60).nullable() });
 export const statusSchema = z.object({ status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']) });
 

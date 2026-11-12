@@ -18,12 +18,13 @@ export interface IntakeFileDTO {
   thumbnailUrl: string | null;
 }
 
-export type DraftFileRole = 'response' | 'input' | 'ignore';
+export type DraftFileRole = 'response' | 'combined' | 'input' | 'ignore';
 
 export interface DraftFile {
   fileId: string;
   role: DraftFileRole;
   label: ResponseLabel | null;
+  labels?: ResponseLabel[];
 }
 
 export interface TaskDraft {
@@ -72,10 +73,31 @@ export function guessResponseLabel(filename: string): ResponseLabel | null {
   return null;
 }
 
+const COMBINED_PATTERN = /responses?[\s_-]*([a-d1-4])\s*(?:-|–|_|to)\s*([a-d1-4])(?![a-z0-9])/i;
+
+export function guessCombinedLabels(filename: string): ResponseLabel[] | null {
+  const match = filename.replace(/\.[^.]+$/, '').match(COMBINED_PATTERN);
+  if (!match) return null;
+  const from = RESPONSE_LABELS.indexOf(toLabel(match[1])!);
+  const to = RESPONSE_LABELS.indexOf(toLabel(match[2])!);
+  return to > from ? RESPONSE_LABELS.slice(from, to + 1) : null;
+}
+
+export function responseLabelsIn(files: DraftFile[]): ResponseLabel[] {
+  const used = new Set<ResponseLabel>();
+  for (const file of files) {
+    if (file.role === 'response' && file.label) used.add(file.label);
+    if (file.role === 'combined') file.labels?.forEach((label) => used.add(label));
+  }
+  return RESPONSE_LABELS.filter((label) => used.has(label));
+}
+
 export function guessFileRoles(files: Array<Pick<IntakeFileDTO, 'id' | 'name' | 'kind'>>): DraftFile[] {
   const sorted = [...files].sort((a, b) => naturalCompare(a.name, b.name));
   return sorted.map((file) => {
     const slideLike = file.kind === 'pdf' || file.kind === 'presentation' || file.kind === 'image';
+    const combined = slideLike ? guessCombinedLabels(file.name) : null;
+    if (combined) return { fileId: file.id, role: 'combined', label: null, labels: combined };
     const label = slideLike ? guessResponseLabel(file.name) : null;
     return label ? { fileId: file.id, role: 'response', label } : { fileId: file.id, role: 'input', label: null };
   });
